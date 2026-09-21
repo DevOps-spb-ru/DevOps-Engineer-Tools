@@ -1,0 +1,51 @@
+name: Баг-репорт
+description: Сообщить о проблеме в утилите, CI или документации
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо за отчёт! Перед созданием issue проверьте, что проблема воспроизводится на актуальном `main`.
+  - type: dropdown
+    id: tool
+    attributes:
+      label: Где проблема
+      options:
+        - Container image optimizer (cio)
+        - CI / workflows
+        - Документация
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Версии
+      description: Коммит или тег, а также версии Go, Docker и Trivy
+      placeholder: "main @ a1b2c3d, Go 1.25.4, Docker 29.8.0, Trivy 0.74.0"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Шаги воспроизведения
+      placeholder: |
+        1. go build -o bin/cio.exe ./cmd/cio
+        2. ./bin/cio.exe analyze postgres:15-alpine
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Ожидаемое поведение
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Фактическое поведение
+      description: Полный вывод и код возврата (в PowerShell — `$LASTEXITCODE`)
+      render: shell
+    validations:
+      required: true

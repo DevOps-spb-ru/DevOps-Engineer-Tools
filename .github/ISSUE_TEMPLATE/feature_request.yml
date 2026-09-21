@@ -1,0 +1,37 @@
+name: Предложение
+description: Новая функциональность, правило анализа или улучшение
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Что улучшаем
+      options:
+        - Container image optimizer (cio)
+        - Новое правило анализа образа
+        - CI / workflows
+        - Документация
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Какую задачу решаем
+      description: Опишите проблему или рутину, которая сейчас отнимает время
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Предлагаемое решение
+      description: Например, новый флаг CLI, правило анализа или изменение отчёта
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Альтернативы
+      description: Чем сейчас пользуетесь и почему это не подходит
+    validations:
+      required: false

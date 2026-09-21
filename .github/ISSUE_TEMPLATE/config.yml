@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Правила разработки
+    url: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/blob/main/CONTRIBUTING.md
+    about: Как запускать проверки, оформлять коммиты и pull request
+  - name: Документация Container image optimizer
+    url: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/tree/main/Container%20image%20optimizer
+    about: Флаги CLI, правила анализа и ограничения утилиты cio
