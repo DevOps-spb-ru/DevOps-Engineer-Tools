@@ -137,6 +137,7 @@ make build
 | Команда | Что делает |
 | --- | --- |
 | `sqlbrc backup --db <имя> [--tag <метка>] [--note <текст>]` | снимает дамп базы в каталог сервиса, затем применяет политику хранения |
+| `sqlbrc backup --all [--tag <метка>] [--note <текст>]` | снимает бэкапы всех обслуживаемых баз кластера: одна недоступная база не отменяет остальные |
 | `sqlbrc restore --db <имя> [--backup <идентификатор>] [--no-clean]` | разворачивает базу из бэкапа (по умолчанию — последнего): снимает служебный бэкап `pre-restore`, завершает активные подключения, создаёт отсутствующую базу и очищает существующую |
 | `sqlbrc clone --from <источник> --to <стенд> [--backup <идентификатор>]` | создаёт стенд из бэкапа другой базы: локаль берётся у источника, существующий приёмник не перезаписывается |
 | `sqlbrc backups list [--db <имя>]` | показывает бэкапы: идентификатор, время, размер, метка, состояние |
@@ -201,6 +202,50 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/
 - если сервис слушает не loopback без TLS, при запуске печатается предупреждение, а `doctor`
   показывает это отдельным замечанием.
 
+## Поставка
+
+Сервис разворачивается двумя способами: на сервере рядом с PostgreSQL (режим `sudo`, локальный
+сокет) или в контейнере, подключающемся к серверу по сети (режим `tcp`). Файлы поставки лежат
+в `deploy/`.
+
+### systemd (сервер рядом с PostgreSQL)
+
+| Файл | Что делает |
+| --- | --- |
+| `deploy/systemd/sqlbrc.service` | служба `sqlbrc serve`: конфиг `/etc/sqlbrc/config.yaml`, ограничения `ProtectSystem=strict`, `ReadWritePaths` только на каталоги сервиса |
+| `deploy/systemd/sqlbrc-backup.service` + `.timer` | ежедневный бэкап всех обслуживаемых баз (`backup --all`): 02:30 со случайным разбросом, пропущенный запуск выполняется после включения машины |
+
+```bash
+install -m 0644 deploy/systemd/sqlbrc.service deploy/systemd/sqlbrc-backup.service \
+  deploy/systemd/sqlbrc-backup.timer /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now sqlbrc.service sqlbrc-backup.timer
+```
+
+Расписание без systemd — `deploy/cron.d/sqlbrc` (одна строка cron с `backup --all`).
+Доступ к интерфейсу ограничивается межсетевым экраном: `deploy/nftables/sqlbrc.nft`
+(проверка без применения — `nft -c -f deploy/nftables/sqlbrc.nft`).
+
+### Контейнер
+
+В контейнере сервис работает в режиме `postgres.mode: tcp`: локального сокета и
+peer-аутентификации там нет, поэтому подключение идёт по сети от имени роли, а пароль
+передаётся файлом (PGPASSFILE). Файл создаёт точка входа образа
+(`deploy/docker-entrypoint.sh`) из переменной `SQLBRC_PGPASS` — сразу с правами 0600:
+смонтированный с хоста файл прав не сохраняет, а PostgreSQL не читает pgpass, доступный
+группе или остальным.
+
+```bash
+cp deploy/.env.example deploy/.env                          # пароль роли (POSTGRES_PASSWORD)
+cp deploy/config.container.example.yaml deploy/config.yaml  # конфиг для контейнера
+printf '%s' 'пароль' | bin/sqlbrc hash-password --login admin   # фрагмент auth.users
+docker compose -f deploy/compose.example.yaml up -d --build
+```
+
+Стенд из `deploy/compose.example.yaml` поднимает PostgreSQL 15 и сервис рядом, публикует
+интерфейс только на `127.0.0.1:8088` и хранит бэкапы и журнал задач в томах. Рабочие
+`deploy/.env` и `deploy/config.yaml` в Git не попадают: в них пароль и настройки стенда.
+
 ## Конфигурация
 
 Настройки живут в одном файле YAML, значения по умолчанию рассчитаны на Debian с PostgreSQL 15.
@@ -211,7 +256,7 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/
 | --- | --- | --- |
 | `server` | веб-интерфейс | `listen`, `tls.cert_file` / `tls.key_file`, `allow_insecure`, `read_only`, `max_body_bytes`, `public_url`, `trusted_proxies` |
 | `auth` | доступ к интерфейсу и API | `users[].login` и `password_bcrypt`, `token_file` (формат `<логин>:<токен>`, образец — `deploy/tokens.example`), `session_ttl`, `login_backoff`, `max_login_attempts` |
-| `postgres` | как сервис работает с PostgreSQL | `mode`, `sudo_path`, `sudo_user`, `bin_dir`, `database`, `role` и `password_file`, `jobs`, `timeout` |
+| `postgres` | как сервис работает с PostgreSQL | `mode` (`sudo` — локальный сокет и peer, `tcp` — по сети с паролем из файла), `sudo_path`, `sudo_user`, `bin_dir`, `host`, `port`, `role`, `database`, `password_file`, `jobs`, `timeout` |
 | `storage` | где лежат бэкапы и служебные данные | `dir`, `state_dir`, `keep_last`, `keep_days`, `min_free_space` |
 | `databases` | какие базы обслуживаются | `pattern`, `protected`, `owner`, `auto_backup_before_restore`, `terminate_on_restore` |
 | `jobs` | очередь операций | `max_parallel`, `max_per_db`, `retain` |
@@ -222,7 +267,7 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/
 - `schema_version` совпадает с поддерживаемым: неизвестная версия схемы отвергается, а не толкуется «как получится»;
 - `server.listen` — корректный `host:port`; интерфейс на не-loopback адресе без TLS не запустится без явного `allow_insecure`; `max_body_bytes` — в диапазоне 4 КиБ..64 МиБ;
 - `auth`: логины (строчные латинские буквы, цифры, `_`, `-`, `.`, 3..32 символа) уникальны, `password_bcrypt` — bcrypt-хэш длиной 60 символов, `session_ttl` не больше 168 ч, `max_login_attempts` — 1..100;
-- `postgres`: в 0.1.0 поддержан только `mode: sudo`; при нём `role` из конфига не применяется — владелец объектов берётся из дампа (`databases.owner`);
+- `postgres`: `mode` — `sudo` (локальный сокет) или `tcp` (подключение по сети); в режиме `tcp` обязательны `host`, `port`, `role` и `password_file` (пароль передаётся файлом, а не аргументами команды), а в `sudo` роль из конфига не применяется — владелец объектов берётся из дампа (`databases.owner`);
 - `storage`: пути абсолютные, `state_dir` не совпадает с `dir`, `keep_last` — 1..1000, `keep_days` — 1..3650, `min_free_space` больше нуля и не больше 1 ТиБ;
 - `databases`: `pattern` компилируется и заякорен (`^…$`: незаякоренный совпал бы с частью имени), `protected` не пуст, `owner` — допустимый идентификатор;
 - `jobs`: `max_parallel` и `max_per_db` — 1..16, `max_per_db` не больше `max_parallel`, `retain` — 10..100000;
@@ -396,11 +441,12 @@ $ sqlbrc jobs --limit 3
 
 - **Логический бэкап, а не PITR.** `pg_dump --format custom --compress 6`: восстановление возможно только на
   момент снятия дампа. Непрерывного архивирования WAL и инкрементальных бэкапов нет.
-- **Один сервер.** Сервис рассчитан на случай, когда PostgreSQL и каталог бэкапов лежат рядом: подключение
-  идёт через локальный сокет. Режим `tcp` для удалённого сервера и поставка в контейнере — 0.3.0.
-- **Расписания бэкапов нет.** Команду `sqlbrc backup` нужно вызывать из cron (или из пайплайна):
-  таймер и юнит systemd появятся в 0.3.0. `doctor` предупреждает, если у обслуживаемых баз нет
-  свежих бэкапов.
+- **Один сервер рядом с PostgreSQL.** Подключение идёт через локальный сокет: PostgreSQL и каталог
+  бэкапов лежат на одной машине. В контейнере используется режим `postgres.mode: tcp`: сервис
+  подключается к серверу по сети, а бэкапы живут в томе контейнера.
+- **Расписание бэкапов настраивается отдельно.** В поставку входят таймер systemd
+  (`deploy/systemd/sqlbrc-backup.timer`, ежедневный `backup --all`) и файл для cron
+  (`deploy/cron.d/sqlbrc`); `doctor` предупреждает, если у обслуживаемых баз нет свежих бэкапов.
 - **Одновременные операции по одной базе ограничены только внутри сервиса.** `jobs.max_per_db` не даёт
   запустить два дампа или восстановления одной базы через `sqlbrc`, но не мешает посторонним
   подключениям: перед восстановлением активные сессии завершаются (`databases.terminate_on_restore`).

@@ -22,7 +22,29 @@
 - API `/api/v1`: `GET /backups`, `GET /jobs`, `POST /backup`, `POST /restore`, `POST /clone`,
   `POST /prune` — доступ по токену (`Authorization: Bearer …`), ответы в JSON, а отказ операции
   отличается от сбоя (`rejected`/`conflict` против `internal`);
-- `GET /healthz` — проверка живости сервиса для systemd и мониторинга (без аутентификации).
+- `GET /healthz` — проверка живости сервиса для systemd и мониторинга (без аутентификации);
+- `sqlbrc backup --all` — бэкапы всех обслуживаемых баз кластера: команда для расписания,
+  которому список баз заранее неизвестен; отказ по правилам и сбой считаются отдельно;
+- режим `postgres.mode: tcp` — подключение по сети от имени роли с паролем из файла
+  (`postgres.password_file`, PGPASSFILE): так работает поставка в контейнере, где нет
+  локального сокета и peer-аутентификации; `doctor` проверяет файл пароля (права 0600);
+- поставка:
+  - `Dockerfile` — образ на alpine с утилитами PostgreSQL 15, непривилегированный пользователь
+    `sqlbrc`, `HEALTHCHECK` через `/healthz`; точка входа создаёт файл пароля с правами 0600
+    из переменной `SQLBRC_PGPASS`;
+  - `deploy/compose.example.yaml`, `deploy/config.container.example.yaml`, `deploy/.env.example` —
+    стенд «PostgreSQL 15 + сервис» для проверки поставки;
+  - `deploy/systemd/sqlbrc.service`, `deploy/systemd/sqlbrc-backup.{service,timer}` — служба
+    с ограничениями (ProtectSystem, ReadWritePaths) и ежедневное расписание бэкапов;
+  - `deploy/nftables/sqlbrc.nft` и `deploy/cron.d/sqlbrc` — ограничение доступа к интерфейсу
+    и расписание для систем без systemd.
+
+### Исправлено
+
+- `SQLListDatabases` обращался к колонке `pg_database.dbtablespace`, которой в PostgreSQL нет
+  (нужна `dattablespace`): `sqlbrc backup --all` и проверки, читающие список баз, падали
+  на `ERROR: column d.dbtablespace does not exist`. Ошибка найдена прогоном поставки
+  в контейнере на живом PostgreSQL 15.
 
 ## [0.2.0] - 2026-09-21
 

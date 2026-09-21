@@ -65,8 +65,11 @@ func TestBeginCommitWritesArchiveAndMetadata(t *testing.T) {
 	if backup.Format != "custom" || backup.Compression != 6 {
 		t.Errorf("формат %q, сжатие %d: ожидались значения по умолчанию", backup.Format, backup.Compression)
 	}
-	if backup.Duration <= 0 {
-		t.Errorf("длительность дампа %s: значение должно быть положительным", backup.Duration)
+	// Длительность берётся из системных часов, а их разрешение зависит от
+	// платформы (в Windows — миллисекунды и грубее), поэтому быстрый дамп может
+	// уложиться в 0. Проверяется только отсутствие отрицательного значения.
+	if backup.Duration < 0 {
+		t.Errorf("длительность дампа %s не может быть отрицательной", backup.Duration)
 	}
 	if !backup.CreatedAt.Equal(testNow) {
 		t.Errorf("время создания %s, ожидалось %s", backup.CreatedAt, testNow)
