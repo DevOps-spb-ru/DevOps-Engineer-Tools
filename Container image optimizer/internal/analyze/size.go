@@ -2,6 +2,7 @@ package analyze
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -40,7 +41,14 @@ func ParseSize(value string) (int64, error) {
 		return 0, fmt.Errorf(
 			"неизвестная единица измерения в %q (поддерживаются B, KB, KiB, MB, MiB, GB, GiB)", value)
 	}
-	return int64(number * float64(multiplier)), nil
+	total := number * float64(multiplier)
+	// Без проверки границы приведение float64 к int64 при переполнении даёт
+	// отрицательное число: порог слоя становился отрицательным, и «крупным»
+	// оказывался любой слой.
+	if total >= float64(math.MaxInt64) {
+		return 0, fmt.Errorf("размер %q слишком велик: больше %d байт", value, int64(math.MaxInt64))
+	}
+	return int64(total), nil
 }
 
 // HumanSize форматирует размер в удобочитаемый вид, например "412.3 MB".
