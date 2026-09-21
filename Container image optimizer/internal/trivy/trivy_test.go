@@ -188,7 +188,7 @@ func TestScanFallsBackToDocker(t *testing.T) {
 }
 
 func TestScanDockerFallbackOptions(t *testing.T) {
-	const image = "docker-hub.iitdgroup.ru/finsynapse/back:5.4.1"
+	const image = "registry.example.com/team/app:5.4.1"
 
 	tests := []struct {
 		name string

@@ -115,7 +115,7 @@ func TestTableWithScanFailureShowsCause(t *testing.T) {
 			"  - unable to initialize artifact:\n" +
 			"    github.com/aquasecurity/trivy/pkg/commands/artifact.createLocalService\n" +
 			"        /home/runner/work/trivy/trivy/pkg/commands/artifact/scanner.go:261\n" +
-			"\t* remote error: GET https://docker-hub.iitdgroup.ru/v2/app/manifests/5.4.1: UNAUTHORIZED",
+			"\t* remote error: GET https://registry.example.com/v2/app/manifests/5.4.1: UNAUTHORIZED",
 		Command: "docker run --rm aquasec/trivy:latest image --format json app:5.4.1",
 	}
 
