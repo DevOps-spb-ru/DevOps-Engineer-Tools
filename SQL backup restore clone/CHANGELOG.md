@@ -1,0 +1,34 @@
+# CHANGELOG — SQL backup restore clone (`sqlbrc`)
+
+История изменений сервиса `sqlbrc`. Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
+нумерация версий — [SemVer](https://semver.org/lang/ru/); схема тегов (`sqlbrc-vX.Y.Z`) и порядок релиза —
+в корневом [CONTRIBUTING.md](../CONTRIBUTING.md). Указатель по всем инструментам — [../CHANGELOG.md](../CHANGELOG.md).
+
+## [Unreleased]
+
+Готовится первый выпуск — `0.1.0`: проверка готовности сервера, конфигурация и утилиты PostgreSQL.
+
+### Add
+
+- `SQL backup restore clone` (`sqlbrc`) — сервис для баз PostgreSQL 15 на одном сервере. В 0.1.0:
+  - команда `doctor`: проверки конфига, утилит PostgreSQL, правила sudoers, прав и каталогов,
+    свободного места, локалей, AppArmor, юнита systemd, веб-доступа, ролей и свежести бэкапов
+    с уровнями `ok`/`warn`/`error`, подсказкой к каждой находке и кодом возврата 1 при ошибках;
+  - форматы отчёта `table` и `json` (`--format`), журнал в `text`/`json` (`--log-format`);
+  - конфигурация из YAML с переопределением переменными окружения `SQLBRC_*` (адрес, каталоги,
+    пороги, TLS, уровень журнала) и проверкой значений при загрузке;
+  - работа с утилитами PostgreSQL 15 через `sudo -n -u postgres`: пароли не хранятся, подключение
+    идёт через локальный сокет, шаблон обслуживаемых баз (`databases.pattern`) задаёт список защищённых имён;
+  - сборка и проверки: `Makefile`, `.golangci.yml`, юнит-тесты и fuzz-цели на разбор имён баз
+    и вывода утилит, пример конфига `deploy/config.example.yaml`.
+- CI: `ci.yml` собирает и проверяет оба инструмента (`cio` и `sqlbrc`: линт, `govulncheck`, тесты, сборка).
+- Документация: `README.md` сервиса и этот `CHANGELOG.md`; корневой `README.md` описывает оба инструмента.
+
+### Известные ограничения
+
+- В 0.1.0 доступны команды `doctor` и `version`: бэкап, восстановление, клонирование, каталог бэкапов
+  с политикой хранения, веб-интерфейс и API — в 0.2.0.
+- PITR и инкрементальные бэкапы не поддерживаются: план — логический дамп `pg_dump --format custom`.
+- Сервис рассчитан на один сервер (PostgreSQL и каталог бэкапов рядом), подключение через локальный сокет.
+
+[Unreleased]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/commits/main/SQL%20backup%20restore%20clone
