@@ -19,18 +19,27 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  PROJECT_DIR: Container image optimizer
-  IMAGE_TAG: cio:scan
-
 jobs:
   image:
-    name: Образ
+    name: Образ (${{ matrix.tool }})
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
       contents: read
       security-events: write
+    strategy:
+      # Падение сканирования одного образа не должно прятать результат второго.
+      fail-fast: false
+      matrix:
+        include:
+          - tool: cio
+            dir: Container image optimizer
+            image: cio:scan
+            sarif: trivy-image-cio.sarif
+          - tool: sqlbrc
+            dir: SQL backup restore clone
+            image: sqlbrc:scan
+            sarif: trivy-image-sqlbrc.sarif
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -39,16 +48,16 @@ jobs:
       - name: Собрать образ
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          context: "${{ env.PROJECT_DIR }}"
+          context: ${{ matrix.dir }}
           push: false
           load: true
-          tags: ${{ env.IMAGE_TAG }}
+          tags: ${{ matrix.image }}
       - name: Trivy (SARIF)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ env.IMAGE_TAG }}
+          image-ref: ${{ matrix.image }}
           format: sarif
-          output: trivy-image.sarif
+          output: ${{ matrix.sarif }}
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "0"
@@ -58,27 +67,49 @@ jobs:
         if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
         with:
-          sarif_file: trivy-image.sarif
-          category: trivy-container-image-optimizer
-      - name: Trivy — ворота по уязвимостям образа
+          sarif_file: ${{ matrix.sarif }}
+          category: trivy-image-${{ matrix.tool }}
+      - name: Trivy — ворота по уязвимостям образа cio
+        # Исключения (.trivyignore) есть только у образа cio: они касаются
+        # встроенного в него сканера Trivy, у образа sqlbrc исключений нет.
+        if: matrix.tool == 'cio'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ env.IMAGE_TAG }}
+          image-ref: ${{ matrix.image }}
           format: table
           severity: CRITICAL,HIGH
           ignore-unfixed: true
-          # Исключения — только для встроенного в образ сканера, со сроком годности:
-          # что именно исключено и почему, описано в .trivyignore.
+          # Что именно исключено и почему, описано в .trivyignore; срок годности
+          # (exp) заставляет перепроверить список.
           trivyignores: .trivyignore
+          exit-code: "1"
+      - name: Trivy — ворота по уязвимостям образа sqlbrc
+        # Код сервиса и базовый образ проверяются без исключений.
+        if: matrix.tool == 'sqlbrc'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ matrix.image }}
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
           exit-code: "1"
 
   filesystem:
-    name: Файловая система и Dockerfile
+    name: Файловая система и Dockerfile (${{ matrix.tool }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
       security-events: write
+    strategy:
+      # Падение сканирования одного инструмента не должно прятать результат второго.
+      fail-fast: false
+      matrix:
+        include:
+          - tool: cio
+            dir: Container image optimizer
+          - tool: sqlbrc
+            dir: SQL backup restore clone
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -87,7 +118,7 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
-          scan-ref: "${{ env.PROJECT_DIR }}"
+          scan-ref: ${{ matrix.dir }}
           scanners: vuln,secret,misconfig
           format: sarif
           output: trivy-fs.sarif
@@ -98,12 +129,13 @@ jobs:
         uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
         with:
           sarif_file: trivy-fs.sarif
-          category: trivy-container-image-optimizer-fs
+          # Категория уникальна для инструмента: иначе отчёты перекрывали бы друг друга.
+          category: trivy-fs-${{ matrix.tool }}
       - name: Trivy — ворота по зависимостям, секретам и Dockerfile
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
-          scan-ref: "${{ env.PROJECT_DIR }}"
+          scan-ref: ${{ matrix.dir }}
           scanners: vuln,secret,misconfig
           format: table
           severity: CRITICAL,HIGH

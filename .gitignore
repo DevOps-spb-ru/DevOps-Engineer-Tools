@@ -10,3 +10,9 @@ dist/
 coverage
 coverage.out
 coverage.html
+
+# Локальные файлы поставки sqlbrc: в deploy/.env и deploy/config.yaml лежат пароль
+# роли и настройки конкретного стенда — им место рядом с compose-файлом, а не в Git.
+# Образцы для копирования: deploy/.env.example, deploy/config.container.example.yaml.
+SQL backup restore clone/deploy/.env
+SQL backup restore clone/deploy/config.yaml

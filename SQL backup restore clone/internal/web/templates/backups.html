@@ -1,0 +1,45 @@
+{{define "content"}}
+<section class="card">
+  <h1>Бэкапы{{if .Database}} базы {{.Database}}{{end}}</h1>
+  <form method="get" action="/backups">
+    <label>База
+      <input name="db" value="{{.Database}}" placeholder="все базы">
+    </label>
+    <button type="submit">Показать</button>
+  </form>
+  <table>
+    <tr>
+      <th>Бэкап</th><th>Создан</th><th>Размер</th><th>Метка</th><th>Состояние</th><th>Действие</th>
+    </tr>
+    {{range .Backups}}
+    <tr>
+      <td>{{.ID}}</td>
+      <td>{{time .CreatedAt}}</td>
+      <td>{{size .SizeBytes}}</td>
+      <td>{{if .Tag}}{{.Tag}}{{else}}—{{end}}</td>
+      <td>{{status .Status}}</td>
+      <td>
+        <form class="inline" method="post" action="/operations/restore">
+          <input type="hidden" name="csrf" value="{{$.CSRFToken}}">
+          <input type="hidden" name="database" value="{{.DB}}">
+          <input type="hidden" name="backup_id" value="{{.ID}}">
+          <button type="submit" {{if $.ReadOnly}}disabled{{end}}>Восстановить</button>
+        </form>
+        <form class="inline" method="post" action="/operations/clone">
+          <input type="hidden" name="csrf" value="{{$.CSRFToken}}">
+          <input type="hidden" name="from" value="{{.DB}}">
+          <input type="hidden" name="backup_id" value="{{.ID}}">
+          <input name="to" required placeholder="новый стенд" size="12">
+          <button type="submit" {{if $.ReadOnly}}disabled{{end}}>Клонировать</button>
+        </form>
+      </td>
+    </tr>
+    {{else}}
+    <tr><td colspan="6">Бэкапов нет.</td></tr>
+    {{end}}
+  </table>
+  <p>Восстановление разворачивает базу целиком: активные подключения завершаются,
+  а перед первой командой снимается служебный бэкап с меткой <code>pre-restore</code>
+  (если включено <code>databases.auto_backup_before_restore</code>).</p>
+</section>
+{{end}}

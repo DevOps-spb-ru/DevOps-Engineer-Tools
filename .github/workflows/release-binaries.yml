@@ -1,0 +1,100 @@
+name: Release binaries
+
+# Общая сборка бинарей для инструментов репозитория. Шаги у инструментов одинаковые:
+# сборка под четыре платформы, SHA256SUMS, SBOM, attestation сборки и GitHub Release,
+# поэтому логика вынесена в вызываемый workflow, а release.yml только выбирает инструмент
+# по тегу. Образ публикуется отдельно: он есть только у cio.
+on:
+  workflow_call:
+    inputs:
+      tool:
+        description: Имя инструмента (совпадает с каталогом cmd/<tool> и с префиксом тега)
+        required: true
+        type: string
+      dir:
+        description: Каталог инструмента в репозитории
+        required: true
+        type: string
+      tag_prefix:
+        description: Префикс тега вместе с -v (например, cio-v)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Бинари и GitHub Release (${{ inputs.tool }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      # Нужны для attestation сборки (OIDC-токен и запись attestations).
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: ${{ inputs.dir }}/go.mod
+          cache-dependency-path: ${{ inputs.dir }}/go.sum
+          # Кэш модулей отключён: job публикует артефакты, а общий кэш можно
+          # отравить из другой ветки (audit cache-poisoning у zizmor).
+          cache: false
+      - name: Собрать бинари
+        working-directory: ${{ inputs.dir }}
+        # Значения из inputs передаются переменными окружения: подстановки github.*
+        # и inputs.* в run-блоке легко подменить (template-injection).
+        env:
+          TOOL: ${{ inputs.tool }}
+          TAG_PREFIX: ${{ inputs.tag_prefix }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#"${TAG_PREFIX}"}"
+          mkdir -p dist
+          for target in linux/amd64 linux/arm64 darwin/arm64 windows/amd64; do
+            os="${target%%/*}"
+            arch="${target##*/}"
+            ext=""
+            if [ "$os" = "windows" ]; then ext=".exe"; fi
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
+              go build -trimpath \
+                -ldflags "-s -w -X main.version=${version} -X main.commit=${GITHUB_SHA::7} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                -o "dist/${TOOL}-${os}-${arch}${ext}" "./cmd/${TOOL}"
+          done
+          (cd dist && sha256sum ./* > SHA256SUMS)
+          ls -l dist
+      - name: Проверить версию в бинаре
+        working-directory: ${{ inputs.dir }}
+        env:
+          TOOL: ${{ inputs.tool }}
+        run: |
+          set -euo pipefail
+          # Кавычки внутри скрипта: подстановка $TOOL без них — находка shellcheck SC2086.
+          "./dist/${TOOL}-linux-amd64" --version
+      - name: SBOM бинарей (CycloneDX)
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          path: "${{ inputs.dir }}/dist"
+          format: cyclonedx-json
+          output-file: "${{ inputs.dir }}/dist/${{ inputs.tool }}-binaries.sbom.cdx.json"
+          # Артефакты публикуем сами: SBOM идёт в релиз вместе с бинарями.
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Attestation сборки бинарей
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: "${{ inputs.dir }}/dist/*"
+      - name: Создать GitHub Release
+        working-directory: ${{ inputs.dir }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TOOL: ${{ inputs.tool }}
+          TAG_PREFIX: ${{ inputs.tag_prefix }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "${TOOL} ${GITHUB_REF_NAME#"${TAG_PREFIX}"}" \
+            --generate-notes

@@ -1,0 +1,18 @@
+[Unit]
+Description=sqlbrc: бэкапы всех обслуживаемых баз
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=sqlbrc
+Group=sqlbrc
+# --all берёт список баз у сервера PostgreSQL и фильтрует его по databases.pattern:
+# расписанию не нужно перечислять стенды, которые появляются и удаляются пайплайном.
+ExecStart=/usr/local/bin/sqlbrc backup --all --config /etc/sqlbrc/config.yaml --note "по расписанию"
+# Код 0 — бэкапы сняты; 1 — сбой (его видно в systemctl status и в мониторинге);
+# 2 — сервис отказался по правилам (режим «только просмотр», мало места).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/backups/sqlbrc /var/lib/sqlbrc

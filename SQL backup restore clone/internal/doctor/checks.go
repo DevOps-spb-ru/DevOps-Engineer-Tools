@@ -68,6 +68,35 @@ func sudoHint(cfg config.PostgresConfig) string {
 		DefaultServiceUser, cfg.SudoUser, strings.Join(binaries, ", "))
 }
 
+// checkPasswordFile проверяет файл пароля режима tcp (PGPASSFILE): утилиты читают
+// его при каждом запуске, а права шире 0600 означали бы, что пароль роли видит
+// любой пользователь сервера. В режиме sudo проверять нечего: пароль не нужен.
+func checkPasswordFile(report *Report, opts Options) {
+	cfg := opts.Cfg.Postgres
+	if cfg.Mode != pg.ModeTCP {
+		return
+	}
+	path := strings.TrimSpace(cfg.PasswordFile)
+	if path == "" {
+		report.add("pgpass", LevelError,
+			"postgres.password_file не задан: в режиме tcp пароль роли передаётся файлом",
+			"создайте файл формата «host:port:база:роль:пароль» (install -m 0600) и укажите путь в postgres.password_file")
+		return
+	}
+	info, err := opts.FS.Stat(path)
+	if err != nil {
+		report.add("pgpass", LevelError, fmt.Sprintf("%s не читается: %v", path, err),
+			fmt.Sprintf("проверьте путь и права: install -m 0600 -o %s -g %s <файл> %s", DefaultServiceUser, DefaultServiceUser, path))
+		return
+	}
+	if perm := info.Mode().Perm(); perm&0o077 != 0 {
+		report.add("pgpass", LevelError, fmt.Sprintf("%s: режим %04o", path, perm),
+			fmt.Sprintf("доступ к паролю роли должен быть только у сервиса: chmod 0600 %s", path))
+		return
+	}
+	report.add("pgpass", LevelOK, fmt.Sprintf("%s: режим %04o", path, info.Mode().Perm()), "")
+}
+
 // serverInfo — что удалось узнать о сервере: нужно для сравнения версий клиентов.
 type serverInfo struct {
 	version pg.Version
@@ -360,7 +389,7 @@ func checkUnit(report *Report, opts Options) {
 	report.add("systemd-unit", LevelWarn,
 		fmt.Sprintf("юнит systemd не найден (%s): сервис запущен вручную или из исходников",
 			strings.Join(opts.UnitPaths, ", ")),
-		"установите юнит из deploy/systemd и включите его: systemctl enable --now sqlbrc")
+		"образец юнита лежит в deploy/systemd: установите его, поправьте пути и включите — systemctl enable --now sqlbrc")
 }
 
 // checkWeb проверяет безопасность веб-интерфейса. Интерфейс слушает LAN без
@@ -384,7 +413,7 @@ func checkWeb(report *Report, opts Options) {
 		report.add("web-security", LevelOK, details+": адрес доступен только с сервера", "")
 	case cfg.Server.AllowInsecure:
 		report.add("web-security", LevelWarn, details+": трафик идёт без шифрования",
-			"ограничьте подсеть в nftables (deploy/nftables/sqlbrc.nft) или настройте server.tls")
+			"ограничьте доступ к порту на межсетевом экране (nftables) или настройте server.tls")
 	default:
 		report.add("web-security", LevelError, details+": интерфейс слушает не loopback без TLS",
 			"настройте server.tls или осознанно включите server.allow_insecure")
@@ -437,7 +466,7 @@ func checkRetention(ctx context.Context, report *Report, opts Options) {
 		report.add("retention", LevelWarn,
 			fmt.Sprintf("нет свежих бэкапов (%d из %d баз, порог %d дней): %s",
 				len(stale), len(managed), opts.Cfg.Storage.KeepDays, strings.Join(stale, ", ")),
-			"снимите бэкап вручную (sqlbrc backup --db <имя>) или включите таймер бэкапов (deploy/systemd)")
+			"снимите бэкап вручную (sqlbrc backup --db <имя>) или поставьте расписание: образцы — deploy/systemd/sqlbrc-backup.timer и deploy/cron.d/sqlbrc")
 		return
 	}
 	report.add("retention", LevelOK,

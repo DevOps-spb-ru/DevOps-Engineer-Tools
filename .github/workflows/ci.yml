@@ -15,11 +15,6 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  # Каталог cio нужен только job'у сборки образа: остальные job'ы работают через
-  # матрицу по инструментам (cio и sqlbrc).
-  PROJECT_DIR: Container image optimizer
-
 jobs:
   lint:
     name: Линт (${{ matrix.tool }})
@@ -152,10 +147,23 @@ jobs:
           if-no-files-found: error
 
   docker:
-    name: Docker-образ
+    name: Docker-образ (${{ matrix.tool }})
     runs-on: ubuntu-latest
     needs: [build]
     timeout-minutes: 20
+    strategy:
+      # Падение сборки одного образа не должно прятать результат второго.
+      fail-fast: false
+      matrix:
+        include:
+          - tool: cio
+            dir: Container image optimizer
+            image: cio:ci
+            user: cio
+          - tool: sqlbrc
+            dir: SQL backup restore clone
+            image: sqlbrc:ci
+            user: sqlbrc
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -164,17 +172,17 @@ jobs:
       - name: Собрать образ
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          context: "${{ env.PROJECT_DIR }}"
+          context: ${{ matrix.dir }}
           push: false
           load: true
-          tags: cio:ci
+          tags: ${{ matrix.image }}
           build-args: |
             VERSION=dev
             REVISION=${{ github.sha }}
       - name: Проверить образ
         run: |
-          docker run --rm cio:ci --version
-          docker run --rm cio:ci --help
-          docker image inspect cio:ci --format '{{index .Config.Labels "org.opencontainers.image.source"}}'
+          docker run --rm ${{ matrix.image }} --version
+          docker run --rm ${{ matrix.image }} --help
+          docker image inspect ${{ matrix.image }} --format '{{index .Config.Labels "org.opencontainers.image.source"}}'
           # Образ обязан оставаться non-root: проверка ловит случайное возвращение к root.
-          test "$(docker image inspect cio:ci --format '{{.Config.User}}')" = "cio"
+          test "$(docker image inspect ${{ matrix.image }} --format '{{.Config.User}}')" = "${{ matrix.user }}"

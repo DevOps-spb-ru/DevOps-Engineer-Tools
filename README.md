@@ -8,7 +8,7 @@
 | Инструмент | Что делает | Стек | Версия |
 | --- | --- | --- | --- |
 | [Container image optimizer](Container%20image%20optimizer/README.md) (`cio`) | Анализирует Docker-образы: размер слоёв, устаревшие пакеты и уязвимости (Trivy), рекомендации по уменьшению размера и multi-stage сборке | Go + Docker Engine API + Trivy | 0.2.0 |
-| [SQL backup, restore and clone](SQL%20backup%20restore%20clone/README.md) (`sqlbrc`) | Бэкап, восстановление и клонирование баз PostgreSQL: каталог бэкапов с политикой хранения и проверка готовности сервера (`doctor`). Операции, очередь задач, веб-интерфейс и API — 0.2.0 | Go + утилиты PostgreSQL 15 | 0.1.0 |
+| [SQL backup, restore and clone](SQL%20backup%20restore%20clone/README.md) (`sqlbrc`) | Бэкап, восстановление и клонирование баз PostgreSQL: каталог бэкапов с политикой хранения, очередь задач с журналом, проверка готовности сервера (`doctor`), веб-интерфейс с API (`serve`), поставка в контейнере и режим `postgres.mode: tcp` | Go + утилиты PostgreSQL 15 | 0.3.0 |
 
 История изменений — в `CHANGELOG.md` каждого инструмента: [cio](Container%20image%20optimizer/CHANGELOG.md),
 [sqlbrc](SQL%20backup%20restore%20clone/CHANGELOG.md). Формат — Keep a Changelog, нумерация — SemVer.
@@ -67,9 +67,9 @@ GitHub Actions (`.github/workflows`):
 
 | Workflow | Что проверяет |
 | --- | --- |
-| `ci.yml` | для каждого инструмента (`cio` и `sqlbrc`): линт (`golangci-lint` с правилами безопасности), достижимые уязвимости зависимостей (`govulncheck`), тесты (`go vet`, `go test -race`, покрытие в артефакте) и сборка бинаря; отдельный job собирает образ и проверяет, что он запускается под непривилегированным пользователем `cio` |
-| `trivy-scan.yml` | уязвимости, секреты и конфигурацию образа и файловой системы `cio`; находки CRITICAL/HIGH роняют прогон, отчёты уходят в GitHub Security |
-| `codeql.yml` | статический анализ Go-кода (модуль `cio`), отчёты — в GitHub Security |
+| `ci.yml` | для каждого инструмента (`cio` и `sqlbrc`): линт (`golangci-lint` с правилами безопасности), достижимые уязвимости зависимостей (`govulncheck`), тесты (`go vet`, `go test -race`, покрытие в артефакте) и сборка бинаря; отдельный job собирает образ каждого инструмента и проверяет, что он запускается под непривилегированным пользователем (`cio`, `sqlbrc`) |
+| `trivy-scan.yml` | уязвимости, секреты и конфигурацию образов обоих инструментов (`cio`, `sqlbrc`) и их файловой системы; находки CRITICAL/HIGH роняют прогон, отчёты уходят в GitHub Security |
+| `codeql.yml` | статический анализ Go-кода обоих модулей (`cio`, `sqlbrc`), отчёты — в GitHub Security |
 
 В `.trivyignore` лежат исключения на уязвимости **встроенного в образ сканера** Trivy: каждое
 с указанием срока годности (`exp`), после которого «ворота» снова падают и список нужно перепроверить.
@@ -78,11 +78,12 @@ GitHub Actions (`.github/workflows`):
 Сторонние экшены закреплены по SHA, обновления приходят через Dependabot (`.github/dependabot.yml`):
 модули Go, GitHub Actions и образы из `Dockerfile`.
 
-Схема тегов — `<инструмент>-vX.Y.Z`. Сейчас настроен релиз `cio` (`.github/workflows/release.yml`, тег
-`cio-vX.Y.Z`): бинари для linux/amd64, linux/arm64, darwin/arm64 и windows/amd64, GitHub Release
-с `SHA256SUMS`, SBOM в формате CycloneDX и attestation сборки, образ `ghcr.io/devops-spb-ru/cio` с SBOM,
-provenance и подписью cosign (keyless). Для `sqlbrc` релизный workflow появится вместе с операциями
-бэкапа и восстановления (0.2.0).
+Схема тегов — `<инструмент>-vX.Y.Z`. `.github/workflows/release.yml` запускается по тегам `cio-vX.Y.Z`
+и `sqlbrc-vX.Y.Z`; общая часть — сборка бинарей (linux/amd64, linux/arm64, darwin/arm64,
+windows/amd64), `SHA256SUMS`, SBOM в формате CycloneDX, attestation сборки и GitHub Release — вынесена
+в вызываемый workflow `.github/workflows/release-binaries.yml`, а публикация образа в GitHub Packages
+(сборка для linux/amd64 и linux/arm64, `--sbom`, `--provenance`, подпись cosign в keyless-режиме) —
+в `.github/workflows/release-image.yml`: `ghcr.io/devops-spb-ru/cio` и `ghcr.io/devops-spb-ru/sqlbrc`.
 Версионирование, чеклист релиза и публикация образа — в [CONTRIBUTING.md](CONTRIBUTING.md),
 порядок сообщения об уязвимостях — в [SECURITY.md](SECURITY.md).
 

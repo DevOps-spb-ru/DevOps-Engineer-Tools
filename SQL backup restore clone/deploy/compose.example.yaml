@@ -1,0 +1,58 @@
+# Стенд для проверки сервиса в контейнере: PostgreSQL 15 и sqlbrc рядом.
+#
+# Запуск (из каталога «SQL backup restore clone»):
+#   cp deploy/.env.example deploy/.env             # впишите POSTGRES_PASSWORD
+#   cp deploy/config.container.example.yaml deploy/config.yaml
+#   printf '%s' 'пароль' | bin/sqlbrc hash-password --login admin   # фрагмент auth.users
+#   docker compose -f deploy/compose.example.yaml up -d --build
+#   docker compose -f deploy/compose.example.yaml logs -f sqlbrc
+#
+# Проверка: http://127.0.0.1:8088 (вход по auth.users) и API по токену из auth.token_file.
+# Остановка: docker compose -f deploy/compose.example.yaml down (тома останутся,
+# бэкапы и журнал задач сохранятся).
+name: sqlbrc-stand
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      # Пароль роли, от имени которой работает сервис: он же в файле pgpass.
+      POSTGRES_USER: sqlbrc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD — пароль роли sqlbrc}
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sqlbrc -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  sqlbrc:
+    build:
+      # Контекст — каталог инструмента (Dockerfile лежит в нём же).
+      context: ..
+    image: sqlbrc:stand
+    depends_on:
+      postgres:
+        # Сервис не должен стартовать раньше, чем сервер принимает подключения.
+        condition: service_healthy
+    environment:
+      # Строка формата PGPASSFILE: точка входа образа создаёт из неё файл пароля
+      # с правами 0600 — смонтированный с хоста файл прав не сохраняет, а PostgreSQL
+      # не читает pgpass, доступный группе или остальным.
+      SQLBRC_PGPASS: "postgres:5432:*:sqlbrc:${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD в deploy/.env — пароль роли sqlbrc}"
+    volumes:
+      - ./config.yaml:/etc/sqlbrc/config.yaml:ro
+      # Бэкапы и журнал задач живут в томах: контейнер можно пересобрать без потери данных.
+      - backups:/var/backups/sqlbrc
+      - state:/var/lib/sqlbrc
+    ports:
+      # Порт публикуется только на loopback: интерфейс без TLS не должен быть
+      # доступен всей сети. Наружу — через reverse-proxy или межсетевой экран.
+      - "127.0.0.1:8088:8088"
+
+volumes:
+  pgdata:
+  backups:
+  state:

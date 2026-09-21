@@ -1,0 +1,19 @@
+# Правила межсетевого экрана для интерфейса сервиса (server.listen, по умолчанию
+# 0.0.0.0:8088 без reverse-proxy): доступ разрешается только доверенной подсети.
+#
+# Проверка без применения: nft -c -f deploy/nftables/sqlbrc.nft
+# Применение целиком:      nft -f deploy/nftables/sqlbrc.nft
+# Если nftables уже настроен, перенесите в свою цепочку input две строки:
+#   ip saddr <ваша подсеть> tcp dport 8088 accept
+#   tcp dport 8088 drop
+#
+# Подсеть и порт — пример: подставьте свои значения (192.168.7.0/24 — доверенная
+# подсеть, 8088 — server.listen).
+table inet sqlbrc {
+  chain input {
+    type filter hook input priority filter; policy accept;
+    # Разрешаем интерфейс только из доверенной подсети.
+    ip saddr 192.168.7.0/24 tcp dport 8088 accept
+    tcp dport 8088 drop
+  }
+}

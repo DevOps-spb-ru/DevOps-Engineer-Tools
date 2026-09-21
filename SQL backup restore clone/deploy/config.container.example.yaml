@@ -1,0 +1,90 @@
+# Конфигурация сервиса sqlbrc в контейнере (режим postgres.mode: tcp).
+#
+# Отличие от config.example.yaml: в контейнере нет локального сокета PostgreSQL и
+# peer-аутентификации, поэтому сервис подключается по сети от имени роли, а пароль
+# берёт из файла (postgres.password_file → PGPASSFILE, права 0600). Пароль в
+# аргументах команды не передаётся: аргументы видны в списке процессов.
+#
+# Установка (стенд целиком — deploy/compose.example.yaml):
+#   cp deploy/config.container.example.yaml /etc/sqlbrc/config.yaml
+#   export SQLBRC_PGPASS='postgres:5432:*:sqlbrc:<пароль роли>'   # строка формата pgpass
+#   printf '%s' 'пароль' | sqlbrc hash-password --login admin     # фрагмент auth.users
+#   sqlbrc doctor --config /etc/sqlbrc/config.yaml                # проверка до первой операции
+#
+# В контейнере файл пароля создаёт точка входа образа (deploy/docker-entrypoint.sh)
+# из переменной SQLBRC_PGPASS и сразу с правами 0600: смонтированный с хоста файл
+# прав не сохраняет, а PostgreSQL не читает pgpass, доступный группе или остальным.
+
+schema_version: 1
+
+server:
+  # Интерфейс доступен только там, куда опубликован порт (в compose — 127.0.0.1).
+  listen: "0.0.0.0:8088"
+  tls:
+    cert_file: ""
+    key_file: ""
+  # allow_insecure: порт закрыт на хосте, поэтому трафик ограничен loopback-публикацией.
+  # Если интерфейс доступен шире, включите tls или ограничьте подсеть межсетевым экраном.
+  allow_insecure: true
+  read_only: false
+  max_body_bytes: 1048576
+  public_url: ""
+  trusted_proxies: []
+
+auth:
+  # Хэш создаётся командой `sqlbrc hash-password --login admin` (пароль читается из stdin).
+  users:
+    - login: admin
+      password_bcrypt: "$2y$10$abcdefghijklmnopqrstuu0123456789abcdefghijklmnopqrstu"
+  # Токены API: файл вида «<логин>:<токен>» (образец — tokens.example), права 0600.
+  token_file: ""
+  session_ttl: "12h"
+  login_backoff: "1s"
+  max_login_attempts: 5
+
+postgres:
+  # В контейнере — tcp: подключение по сети от имени роли с паролем из файла.
+  mode: "tcp"
+  # sudo_user нужен только владельцу базы в режиме sudo; в tcp он не применяется.
+  sudo_user: "postgres"
+  # В образе утилиты PostgreSQL лежат здесь (пакет postgresql15-client).
+  bin_dir: "/usr/bin"
+  # Имя службы из compose (или адрес сервера PostgreSQL).
+  host: "postgres"
+  port: "5432"
+  # Роль, от имени которой работает сервис: должна совпадать с полем user в pgpass.
+  role: "sqlbrc"
+  database: "postgres"
+  # Файл создаёт точка входа образа из переменной SQLBRC_PGPASS (права 0600).
+  password_file: "/run/sqlbrc/pgpass"
+  jobs: 4
+  timeout: "2h"
+
+storage:
+  # Каталоги — тома контейнера (в compose это volumes backups и state).
+  dir: "/var/backups/sqlbrc"
+  state_dir: "/var/lib/sqlbrc"
+  keep_last: 7
+  keep_days: 14
+  min_free_space: "5GB"
+
+databases:
+  pattern: "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-[0-9]+$"
+  protected:
+    - postgres
+    - template0
+    - template1
+  # Владелец создаваемых баз: в режиме tcp это роль сервиса.
+  owner: "sqlbrc"
+  auto_backup_before_restore: true
+  terminate_on_restore: true
+
+jobs:
+  max_parallel: 2
+  max_per_db: 1
+  retain: 200
+
+logging:
+  # json — для `docker logs` и сборщиков журналов.
+  level: "info"
+  format: "json"

@@ -1,0 +1,78 @@
+{{define "content"}}
+<section class="card">
+  <h1>Создать бэкап</h1>
+  <form method="post" action="/operations/backup">
+    <input type="hidden" name="csrf" value="{{$.CSRFToken}}">
+    <label>База
+      <input name="database" list="databases" required placeholder="fse-1234">
+    </label>
+    <datalist id="databases">
+      {{range .Databases}}<option value="{{.Name}}"></option>{{end}}
+    </datalist>
+    <label>Метка
+      <input name="tag" placeholder="например, before-release">
+    </label>
+    <label>Примечание
+      <input name="note">
+    </label>
+    <button type="submit" {{if .ReadOnly}}disabled{{end}}>Снять бэкап</button>
+  </form>
+  <p>База должна входить в <code>databases.pattern</code> и не быть защищённой;
+  политика хранения (<code>keep_last</code> {{.KeepLast}}, <code>keep_days</code> {{.KeepDays}})
+  применяется после успешного дампа.</p>
+</section>
+
+<section class="card">
+  <h1>Базы</h1>
+  <table>
+    <tr>
+      <th>База</th><th>Бэкапов</th><th>Последний бэкап</th><th>Размер</th><th>Состояние</th>
+    </tr>
+    {{range .Databases}}
+    <tr>
+      <td><a href="/backups?db={{.Name}}">{{.Name}}</a></td>
+      <td>{{.Count}}</td>
+      <td>{{time .Latest.CreatedAt}}</td>
+      <td>{{size .Latest.SizeBytes}}</td>
+      <td>{{status .Latest.Status}}</td>
+    </tr>
+    {{else}}
+    <tr><td colspan="5">В каталоге {{.StorageDir}} бэкапов пока нет.</td></tr>
+    {{end}}
+  </table>
+</section>
+
+<section class="card">
+  <h1>Клонировать стенд</h1>
+  <form method="post" action="/operations/clone">
+    <input type="hidden" name="csrf" value="{{$.CSRFToken}}">
+    <label>Источник
+      <input name="from" list="databases" required placeholder="fse-1234">
+    </label>
+    <label>Приёмник
+      <input name="to" required placeholder="fssd-7">
+    </label>
+    <label>Бэкап
+      <input name="backup_id" placeholder="последний">
+    </label>
+    <button type="submit" {{if .ReadOnly}}disabled{{end}}>Клонировать</button>
+  </form>
+  <p>Приёмник должен отсутствовать в кластере: существующая база не перезаписывается.</p>
+</section>
+
+<section class="card">
+  <h1>Уборка по политике хранения</h1>
+  <form method="post" action="/operations/prune">
+    <input type="hidden" name="csrf" value="{{$.CSRFToken}}">
+    <label>База
+      <input name="database" list="databases" placeholder="все базы">
+    </label>
+    <label>Только показать
+      <input type="checkbox" name="dry_run" value="1" checked>
+    </label>
+    <button type="submit" {{if .ReadOnly}}disabled{{end}}>Показать или удалить</button>
+  </form>
+  <p>С «только показать» сервис печатает план на странице задач и ничего не удаляет:
+  файлы в <code>storage.dir</code> убираются лишь при снятой галочке.</p>
+</section>
+{{end}}

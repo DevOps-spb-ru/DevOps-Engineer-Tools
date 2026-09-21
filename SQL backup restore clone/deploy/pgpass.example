@@ -1,0 +1,17 @@
+# Файл пароля для режима postgres.mode: tcp (postgres.password_file).
+#
+# Формат PGPASSFILE: host:port:database:user:password — по строке на базу.
+# Сервису достаточно одной строки: обслуживаемые базы берутся из databases.pattern,
+# а host, port и user должны совпадать с postgres.host, postgres.port и postgres.role.
+# Звёздочка «*» означает «любое значение».
+#
+# Установка:
+#   install -m 0600 -o sqlbrc -g sqlbrc deploy/pgpass.example /etc/sqlbrc/pgpass
+#   # затем замените пароль (для compose-стенда — тем же, что в POSTGRES_PASSWORD)
+#
+# Права важны: 0640 и шире означали бы, что пароль роли видит любой пользователь
+# сервера, а `sqlbrc doctor` показывает такой файл как ошибку.
+#
+# Пример ниже — для стенда из deploy/compose.example.yaml: служба postgres,
+# порт 5432, роль sqlbrc. Значение пароля обязательно замените.
+postgres:5432:*:sqlbrc:замените-на-пароль

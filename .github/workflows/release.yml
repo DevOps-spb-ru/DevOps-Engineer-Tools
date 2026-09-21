@@ -1,11 +1,11 @@
 name: Release
 
-# Релиз запускается по тегу вида cio-v0.1.0 (схема тегов и чеклист — в CONTRIBUTING.md):
-# собираются бинари для основных платформ, создаётся GitHub Release
-# и публикуется образ в GitHub Packages (ghcr.io/devops-spb-ru/cio).
+# Релиз запускается по тегу вида <инструмент>-vX.Y.Z (схема тегов и чеклист — в
+# CONTRIBUTING.md): собираются бинари для основных платформ, создаётся GitHub Release,
+# а образ инструмента публикуется в GitHub Packages (ghcr.io/devops-spb-ru/<инструмент>).
 on:
   push:
-    tags: ["cio-v*"]
+    tags: ["cio-v*", "sqlbrc-v*"]
 
 # Релизы не отменяем: прерывать публикацию артефактов нельзя.
 concurrency:
@@ -15,128 +15,61 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  PROJECT_DIR: Container image optimizer
-  IMAGE: ghcr.io/devops-spb-ru/cio
-
 jobs:
-  release:
-    name: Бинари и GitHub Release
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+  # Инструменты перечислены отдельными job'ами: matrix недоступен в jobs.<id>.if,
+  # поэтому тег фильтруется условием на job'е, а сами шаги вынесены в вызываемые
+  # workflow (release-binaries.yml и release-image.yml): они у инструментов одинаковые.
+  binaries-cio:
+    if: startsWith(github.ref_name, 'cio-v')
     permissions:
       contents: write
       # Нужны для attestation сборки (OIDC-токен и запись attestations).
       id-token: write
       attestations: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: "Container image optimizer/go.mod"
-          cache-dependency-path: "Container image optimizer/go.sum"
-          # Кэш модулей отключён: job публикует артефакты, а общий кэш можно
-          # отравить из другой ветки (audit cache-poisoning у zizmor).
-          cache: false
-      - name: Собрать бинари
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          set -euo pipefail
-          version="${GITHUB_REF_NAME#cio-v}"
-          mkdir -p dist
-          for target in linux/amd64 linux/arm64 darwin/arm64 windows/amd64; do
-            os="${target%%/*}"
-            arch="${target##*/}"
-            ext=""
-            if [ "$os" = "windows" ]; then ext=".exe"; fi
-            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
-              go build -trimpath \
-                -ldflags "-s -w -X main.version=${version} -X main.commit=${GITHUB_SHA::7} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-                -o "dist/cio-${os}-${arch}${ext}" ./cmd/cio
-          done
-          (cd dist && sha256sum ./* > SHA256SUMS)
-          ls -l dist
-      - name: Проверить версию в бинаре
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: ./dist/cio-linux-amd64 --version
-      - name: SBOM бинарей (CycloneDX)
-        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
-        with:
-          path: "${{ env.PROJECT_DIR }}/dist"
-          format: cyclonedx-json
-          output-file: "${{ env.PROJECT_DIR }}/dist/cio-binaries.sbom.cdx.json"
-          # Артефакты публикуем сами: SBOM идёт в релиз вместе с бинарями.
-          upload-artifact: false
-          upload-release-assets: false
-      - name: Attestation сборки бинарей
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
-        with:
-          subject-path: "${{ env.PROJECT_DIR }}/dist/*"
-      - name: Создать GitHub Release
-        working-directory: ${{ env.PROJECT_DIR }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
-            --title "cio ${GITHUB_REF_NAME#cio-v}" \
-            --generate-notes
+    # Форма $/… — синтаксис «свой репозиторий»: в отличие от ./, он не зависит от
+    # файлов рабочего каталога и учитывается политикой «всё закреплено» (audit zizmor).
+    uses: $/.github/workflows/release-binaries.yml
+    with:
+      tool: cio
+      dir: Container image optimizer
+      tag_prefix: cio-v
 
-  image:
-    name: Образ в GitHub Packages
-    runs-on: ubuntu-latest
-    needs: [release]
-    timeout-minutes: 40
+  binaries-sqlbrc:
+    if: startsWith(github.ref_name, 'sqlbrc-v')
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: $/.github/workflows/release-binaries.yml
+    with:
+      tool: sqlbrc
+      dir: SQL backup restore clone
+      tag_prefix: sqlbrc-v
+
+  image-cio:
+    if: startsWith(github.ref_name, 'cio-v')
+    needs: [binaries-cio]
     permissions:
       contents: read
       packages: write
       # Ключи для cosign не нужны: подпись keyless через OIDC GitHub.
       id-token: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - name: Войти в ghcr.io
-        env:
-          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # В run-блоке нет подстановок github.*: их легко подменить (template-injection),
-        # значения передаются переменными окружения.
-        run: echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-      - name: Собрать и опубликовать образ
-        run: |
-          set -euo pipefail
-          version="${GITHUB_REF_NAME#cio-v}"
-          tags=(--tag "${IMAGE}:${version}")
-          # Тег latest двигаем только на стабильном релизе: у предрелиза (0.2.0-rc.1)
-          # он не должен перекрывать последнюю рабочую версию.
-          if [[ "$version" == *-* ]]; then
-            echo "предрелиз $version: тег latest не обновляем"
-          else
-            tags+=(--tag "${IMAGE}:latest")
-          fi
-          # --sbom и --provenance кладут рядом с образом attestations: видно,
-          # из каких исходников и как собран образ.
-          docker buildx build \
-            --platform linux/amd64,linux/arm64 \
-            --build-arg VERSION="$version" \
-            --build-arg REVISION="${GITHUB_SHA}" \
-            --provenance=true \
-            --sbom=true \
-            "${tags[@]}" \
-            --push \
-            "${PROJECT_DIR}"
-      - name: Проверить пакет
-        run: docker buildx imagetools inspect "${IMAGE}:${GITHUB_REF_NAME#cio-v}"
-      - name: Установить cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-      - name: Подписать образ (keyless)
-        run: |
-          set -euo pipefail
-          version="${GITHUB_REF_NAME#cio-v}"
-          digest=$(docker buildx imagetools inspect "${IMAGE}:${version}" --format '{{.Manifest.Digest}}')
-          cosign sign --yes "${IMAGE}@${digest}"
-          echo "подписан ${IMAGE}@${digest}"
+    uses: $/.github/workflows/release-image.yml
+    with:
+      tool: cio
+      dir: Container image optimizer
+      tag_prefix: cio-v
+
+  image-sqlbrc:
+    if: startsWith(github.ref_name, 'sqlbrc-v')
+    needs: [binaries-sqlbrc]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    uses: $/.github/workflows/release-image.yml
+    with:
+      tool: sqlbrc
+      dir: SQL backup restore clone
+      tag_prefix: sqlbrc-v
 

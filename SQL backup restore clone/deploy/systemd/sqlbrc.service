@@ -1,0 +1,32 @@
+[Unit]
+Description=sqlbrc — бэкапы, восстановление и клонирование баз PostgreSQL
+# Сервис обращается к PostgreSQL по локальному сокету (режим sudo), поэтому
+# ждём и сеть, и сервер: иначе первый же запрос упадёт.
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=simple
+User=sqlbrc
+Group=sqlbrc
+# Путь установки: бинарь из релиза, конфиг — /etc/sqlbrc/config.yaml (режим 0640).
+ExecStart=/usr/local/bin/sqlbrc serve --config /etc/sqlbrc/config.yaml
+Restart=on-failure
+RestartSec=5s
+# Сервис всегда должен останавливаться целиком: без TimeoutStopSec systemd
+# ждёт завершения активных запросов (в сервисе это 10 секунд).
+TimeoutStopSec=30s
+
+# Ограничения: сервису нужны только свои каталоги и конфиг.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths=/var/backups/sqlbrc /var/lib/sqlbrc
+
+[Install]
+WantedBy=multi-user.target

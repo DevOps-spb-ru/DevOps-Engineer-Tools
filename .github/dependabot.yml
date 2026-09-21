@@ -30,6 +30,31 @@ updates:
         patterns:
           - "*"
 
+  # Модули Go сервиса sqlbrc.
+  - package-ecosystem: gomod
+    directory: "/SQL backup restore clone"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:05"
+      timezone: Europe/Moscow
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "Deps: go"
+    labels:
+      - dependencies
+      - go
+    groups:
+      go-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+      go-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
   # GitHub Actions: теги в workflows фиксируются по SHA, обновляет их Dependabot.
   - package-ecosystem: github-actions
     directory: "/"
@@ -62,6 +87,21 @@ updates:
       interval: weekly
       day: monday
       time: "04:20"
+      timezone: Europe/Moscow
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "Deps: docker"
+    labels:
+      - dependencies
+      - docker
+
+  # Образы sqlbrc: golang-alpine (сборка), alpine (runtime), postgresql15-client.
+  - package-ecosystem: docker
+    directory: "/SQL backup restore clone"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:30"
       timezone: Europe/Moscow
     open-pull-requests-limit: 5
     commit-message:
