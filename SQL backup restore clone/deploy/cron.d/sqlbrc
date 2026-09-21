@@ -1,0 +1,9 @@
+# Расписание бэкапов для систем без systemd-таймера (в Debian он есть:
+# deploy/systemd/sqlbrc-backup.timer — предпочтительный способ).
+#
+# Установка: install -m 0644 deploy/cron.d/sqlbrc /etc/cron.d/sqlbrc
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# --all снимает бэкапы всех обслуживаемых баз: список берётся из кластера.
+# Код возврата пишется в журнал cron: 0 — успех, 1 — сбой, 2 — отказ по правилам.
+30 2 * * * sqlbrc /usr/local/bin/sqlbrc backup --all --config /etc/sqlbrc/config.yaml --note "по расписанию"
