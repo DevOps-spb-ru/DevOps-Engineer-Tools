@@ -101,7 +101,8 @@ type User struct {
 
 // PostgresConfig — доступ к PostgreSQL.
 type PostgresConfig struct {
-	// Mode — способ запуска утилит: sudo (0.1.0) или tcp (0.2.0).
+	// Mode — способ запуска утилит: sudo (основной режим) или tcp (появится
+	// вместе с поставкой в контейнере в 0.3.0).
 	Mode string `yaml:"mode"`
 	// SudoPath, SudoUser — путь к sudo и пользователь-владелец кластера.
 	SudoPath string `yaml:"sudo_path"`
@@ -261,6 +262,7 @@ func Default() Configuration {
 		Databases: DatabasesConfig{
 			Pattern:                 pg.DefaultAllowPattern,
 			Protected:               append([]string{}, pg.ReservedDatabases...),
+			Owner:                   pg.DefaultSudoUser,
 			AutoBackupBeforeRestore: true,
 			TerminateOnRestore:      true,
 		},

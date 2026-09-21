@@ -17,8 +17,15 @@ import (
 // без запуска sudo, psql и pg_dump.
 func execute(t *testing.T, args ...string) (int, string, string) {
 	t.Helper()
+	return executeInput(t, "", args...)
+}
+
+// executeInput запускает команду с подготовленным stdin: так проверяется команда
+// hash-password, которая читает пароль из потока.
+func executeInput(t *testing.T, input string, args ...string) (int, string, string) {
+	t.Helper()
 	var stdout, stderr bytes.Buffer
-	code := run(context.Background(), args, &stdout, &stderr)
+	code := run(context.Background(), args, strings.NewReader(input), &stdout, &stderr)
 	return code, stdout.String(), stderr.String()
 }
 
@@ -54,7 +61,7 @@ func TestRunHelp(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("код возврата = %d, ожидался 0", code)
 	}
-	for _, want := range []string{"sqlbrc", "doctor", "version", "sudo -n -u"} {
+	for _, want := range []string{"sqlbrc", "doctor", "version", "backup", "restore", "clone", "backups", "jobs", "hash-password", "sudo -n -u"} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("в справке нет %q:\n%s", want, stdout)
 		}
@@ -97,7 +104,7 @@ func TestRunRejectsInvalidInput(t *testing.T) {
 	}{
 		{
 			name:     "неизвестная команда",
-			args:     []string{"backup", "--db", "fse-1"},
+			args:     []string{"purge", "--db", "fse-1"},
 			wantHint: "unknown command",
 		},
 		{
