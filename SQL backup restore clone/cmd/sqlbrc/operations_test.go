@@ -3,19 +3,29 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/DevOps-spb-ru/DevOps-Engineer-Tools/sql-backup-restore-clone/internal/jobs"
 	"github.com/DevOps-spb-ru/DevOps-Engineer-Tools/sql-backup-restore-clone/internal/passwd"
 )
 
-// operationsConfigDocument собирает конфиг для проверок команд: пути каталогов
-// те же, что в примере установки. Проверки команд не создают файлов: операция
-// отвергается до первого обращения к хранилищу, поэтому /var в тестах не трогается.
+// testStateCounter нумерует каталоги журнала внутри одного прогона: каждой
+// проверке нужен свой каталог.
+var testStateCounter atomic.Int64
+
+// operationsConfigDocument собирает конфиг для проверок команд. Каталоги берутся
+// уникальными для каждого вызова: команда `jobs` читает журнал, и общий каталог
+// (/var/lib/sqlbrc на сервере) сделал бы проверку «журнал пуст» зависимой от
+// других тестов и от файлов, оставшихся на машине от прошлых прогонов.
+// Путь в стиле Linux: конфиг требует абсолютный путь с «/», поэтому проверки
+// идут одинаково на сервере и на машине разработки.
 func operationsConfigDocument() string {
-	return `
+	dir := fmt.Sprintf("/tmp/sqlbrc-cli-tests/%d-%d", os.Getpid(), testStateCounter.Add(1))
+	return fmt.Sprintf(`
 server:
   listen: "0.0.0.0:8088"
   allow_insecure: true
@@ -24,9 +34,9 @@ auth:
     - login: admin
       password_bcrypt: "$2y$10$abcdefghijklmnopqrstuu0123456789abcdefghijklmnopqrstu"
 storage:
-  dir: "/var/backups/sqlbrc"
-  state_dir: "/var/lib/sqlbrc"
-`
+  dir: "%s/backups"
+  state_dir: "%s"
+`, dir, dir)
 }
 
 // TestRunOperationsRejectForeignDatabases проверяет код возврата 2: операция с
