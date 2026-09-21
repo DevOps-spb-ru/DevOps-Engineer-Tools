@@ -171,7 +171,7 @@ func (s *Store) ListDatabases() ([]string, error) {
 }
 
 // Find возвращает бэкап по идентификатору «<база>/<имя>». Идентификатор приходит
-// из CLI и (в 0.3.0) из веб-формы, поэтому проверяется и по частям, и целиком.
+// из CLI и из веб-формы, поэтому проверяется и по частям, и целиком.
 func (s *Store) Find(id string) (Backup, error) {
 	database, name, err := pg.SplitBackupID(id)
 	if err != nil {

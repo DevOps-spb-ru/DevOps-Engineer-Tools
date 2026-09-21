@@ -389,7 +389,7 @@ func checkUnit(report *Report, opts Options) {
 	report.add("systemd-unit", LevelWarn,
 		fmt.Sprintf("юнит systemd не найден (%s): сервис запущен вручную или из исходников",
 			strings.Join(opts.UnitPaths, ", ")),
-		"в 0.2.0 юнит в поставку не входит: добавьте его сами и включите — systemctl enable --now sqlbrc")
+		"образец юнита лежит в deploy/systemd: установите его, поправьте пути и включите — systemctl enable --now sqlbrc")
 }
 
 // checkWeb проверяет безопасность веб-интерфейса. Интерфейс слушает LAN без
@@ -466,7 +466,7 @@ func checkRetention(ctx context.Context, report *Report, opts Options) {
 		report.add("retention", LevelWarn,
 			fmt.Sprintf("нет свежих бэкапов (%d из %d баз, порог %d дней): %s",
 				len(stale), len(managed), opts.Cfg.Storage.KeepDays, strings.Join(stale, ", ")),
-			"снимите бэкап вручную (sqlbrc backup --db <имя>) или поставьте команду в cron: таймер бэкапов появится в 0.3.0")
+			"снимите бэкап вручную (sqlbrc backup --db <имя>) или поставьте расписание: образцы — deploy/systemd/sqlbrc-backup.timer и deploy/cron.d/sqlbrc")
 		return
 	}
 	report.add("retention", LevelOK,

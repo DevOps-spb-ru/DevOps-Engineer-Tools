@@ -8,7 +8,7 @@
 | Инструмент | Что делает | Стек | Версия |
 | --- | --- | --- | --- |
 | [Container image optimizer](Container%20image%20optimizer/README.md) (`cio`) | Анализирует Docker-образы: размер слоёв, устаревшие пакеты и уязвимости (Trivy), рекомендации по уменьшению размера и multi-stage сборке | Go + Docker Engine API + Trivy | 0.2.0 |
-| [SQL backup, restore and clone](SQL%20backup%20restore%20clone/README.md) (`sqlbrc`) | Бэкап, восстановление и клонирование баз PostgreSQL: каталог бэкапов с политикой хранения, очередь задач с журналом, проверка готовности сервера (`doctor`) и веб-интерфейс с API (`serve`). Поставка в контейнере и режим `postgres.mode: tcp` — 0.3.0 | Go + утилиты PostgreSQL 15 | 0.3.0 |
+| [SQL backup, restore and clone](SQL%20backup%20restore%20clone/README.md) (`sqlbrc`) | Бэкап, восстановление и клонирование баз PostgreSQL: каталог бэкапов с политикой хранения, очередь задач с журналом, проверка готовности сервера (`doctor`), веб-интерфейс с API (`serve`), поставка в контейнере и режим `postgres.mode: tcp` | Go + утилиты PostgreSQL 15 | 0.3.0 |
 
 История изменений — в `CHANGELOG.md` каждого инструмента: [cio](Container%20image%20optimizer/CHANGELOG.md),
 [sqlbrc](SQL%20backup%20restore%20clone/CHANGELOG.md). Формат — Keep a Changelog, нумерация — SemVer.
