@@ -1,0 +1,37 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: standard
+  enable:
+    - errorlint
+    - gocritic
+    - misspell
+    - nilerr
+    - revive
+  settings:
+    revive:
+      rules:
+        # analyze.AnalyzeLayers — намеренно описательное имя: «заикание» с именем пакета
+        # здесь помогает читаемости, отключаем только эту проверку правила exported.
+        - name: exported
+          arguments:
+            - checkPrivateReceivers
+            - disableStutteringCheck
+  exclusions:
+    generated: lax
+    rules:
+      # В тестах допускаем вольности: гонять те же правила, что и в коде, смысла нет.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gocritic
+          - revive
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
