@@ -20,13 +20,16 @@ const (
 
 // writeScanFailure печатает причину недоступности сканера. Раньше выводилась только
 // первая строка, обрезанная до 220 символов, и реальная причина терялась.
-func writeScanFailure(buf *strings.Builder, scan *analyze.ScanSummary) {
+// Отчёт передаётся целиком: подсказке нужен ещё и образ, чтобы напечатать
+// готовые команды восстановления.
+func writeScanFailure(buf *strings.Builder, report *analyze.Report) {
+	scan := report.Scan
 	lines := errorLines(scan.Error)
 	fmt.Fprintf(buf, "  недоступно: %s\n", lines[0])
 	for _, line := range lines[1:] {
 		fmt.Fprintf(buf, "%s%s\n", errorIndent, line)
 	}
-	if hint := hintForScanError(scan.Error); hint != "" {
+	if hint := hintForScanError(scan.Error, report.Image.Ref); hint != "" {
 		fmt.Fprintf(buf, "  подсказка:  %s\n", hint)
 	}
 	if scan.Command != "" {

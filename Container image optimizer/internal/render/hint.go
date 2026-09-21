@@ -12,6 +12,15 @@ type scanHint struct {
 // scanHints перечислены в порядке проверки: от частых причин к редким.
 var scanHints = []scanHint{
 	{
+		// Trivy перебрал все источники и ни один не подошёл. Чаще всего речь о локальном
+		// образе, которого не видит контейнер со сканером, поэтому подсказка начинается
+		// с сокета; про креды она тоже говорит, иначе причина UNAUTHORIZED потеряется.
+		keywords: []string{"unable to find the specified image"},
+		hint: "образ не найден ни в локальном демоне, ни в реестре: для локального образа " +
+			"смонтируйте сокет демона (--trivy-docker-socket вместе с --trivy-image-src docker), " +
+			"для приватного реестра задайте TRIVY_USERNAME и TRIVY_PASSWORD",
+	},
+	{
 		keywords: []string{"unauthorized", "authentication required", "not authorized"},
 		hint: "реестр требует авторизации: задайте TRIVY_USERNAME и TRIVY_PASSWORD в окружении " +
 			"(cio пробрасывает их в контейнер) или запустите локальный бинарь trivy после docker login",
@@ -25,11 +34,6 @@ var scanHints = []scanHint{
 		keywords: []string{"failed to connect to the docker api", "docker socket", "podman socket"},
 		hint: "контейнер Trivy не видит локальный демон: добавьте --trivy-docker-socket, " +
 			"чтобы смонтировать сокет, либо сканируйте из реестра (--trivy-image-src remote с кредами)",
-	},
-	{
-		keywords: []string{"not found in tar", "unable to get uncompressed layer"},
-		hint: "локальная копия образа неполная — docker save отдаёт архив без слоёв: " +
-			"перекачайте образ (docker pull) или сканируйте из реестра (--trivy-image-src remote)",
 	},
 	{
 		keywords: []string{"x509:", "tls:", "certificate"},
@@ -51,9 +55,23 @@ var scanHints = []scanHint{
 	},
 }
 
-// hintForScanError подбирает подсказку по тексту ошибки сканера.
-func hintForScanError(message string) string {
+// incompleteCopyKeywords — признаки того, что локальная копия образа неполная:
+// docker save отдаёт архив без слоёв, поэтому Trivy не может прочитать слой.
+var incompleteCopyKeywords = []string{
+	"not found in tar",
+	"unable to get uncompressed layer",
+	"failed to export image",
+}
+
+// hintForScanError подбирает подсказку по тексту ошибки сканера. imageRef нужен
+// подсказкам с готовой командой: конкретный образ понятнее заглушки.
+func hintForScanError(message, imageRef string) string {
 	lowered := strings.ToLower(message)
+	for _, keyword := range incompleteCopyKeywords {
+		if strings.Contains(lowered, keyword) {
+			return incompleteCopyHint(imageRef)
+		}
+	}
 	for _, rule := range scanHints {
 		for _, keyword := range rule.keywords {
 			if strings.Contains(lowered, keyword) {
@@ -62,4 +80,16 @@ func hintForScanError(message string) string {
 		}
 	}
 	return ""
+}
+
+// incompleteCopyHint объясняет, как обойти неполную локальную копию образа.
+// Совет про docker pull тут не помогает: Docker считает тег актуальным и копию
+// не пересоздаёт, поэтому нужен либо rmi+pull, либо источник remote.
+func incompleteCopyHint(imageRef string) string {
+	if strings.TrimSpace(imageRef) == "" {
+		imageRef = "<образ>"
+	}
+	return "локальная копия образа неполная — docker save отдаёт архив без слоёв: " +
+		"пересоздайте копию (docker rmi " + imageRef + " && docker pull " + imageRef + ") " +
+		"или сканируйте из реестра (cio analyze --trivy-image-src remote " + imageRef + ")"
 }

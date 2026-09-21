@@ -39,7 +39,7 @@ func writeScan(buf *strings.Builder, report *analyze.Report) {
 		fmt.Fprintf(buf, "  сканирование не запускалось (--no-trivy)\n")
 		return
 	case scan.Error != "":
-		writeScanFailure(buf, scan)
+		writeScanFailure(buf, report)
 		return
 	}
 

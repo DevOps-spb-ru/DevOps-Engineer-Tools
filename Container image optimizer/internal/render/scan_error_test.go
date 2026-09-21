@@ -74,10 +74,17 @@ func TestAbbreviateLine(t *testing.T) {
 
 func TestHintForScanError(t *testing.T) {
 	tests := []struct {
-		name    string
-		message string
-		want    string
+		name     string
+		message  string
+		imageRef string
+		want     string
 	}{
+		{
+			name: "образ не найден ни локально, ни в реестре",
+			message: "unable to find the specified image \"app:5.4.1\" in [\"docker\" \"containerd\" \"podman\" \"remote\"]: " +
+				"4 errors occurred:\n\t* remote error: UNAUTHORIZED",
+			want: "--trivy-docker-socket",
+		},
 		{
 			name:    "нет авторизации в реестре",
 			message: "remote error: UNAUTHORIZED: access to the requested resource is not authorized",
@@ -94,9 +101,10 @@ func TestHintForScanError(t *testing.T) {
 			want:    "--trivy-docker-socket",
 		},
 		{
-			name:    "локальная копия образа неполная",
-			message: "failed to get the layer: file blobs/sha256/aad6289 not found in tar",
-			want:    "перекачайте образ",
+			name:     "локальная копия образа неполная",
+			message:  "failed to get the layer: file blobs/sha256/aad6289 not found in tar",
+			imageRef: "app:5.4.1",
+			want:     "docker rmi app:5.4.1 && docker pull app:5.4.1",
 		},
 		{
 			name:    "сертификат реестра",
@@ -127,7 +135,7 @@ func TestHintForScanError(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			hint := hintForScanError(test.message)
+			hint := hintForScanError(test.message, test.imageRef)
 			if test.want == "" {
 				if hint != "" {
 					t.Errorf("hintForScanError(%q) = %q, ожидалась пустая подсказка", test.message, hint)
@@ -138,5 +146,26 @@ func TestHintForScanError(t *testing.T) {
 				t.Errorf("hintForScanError(%q) = %q, ожидалось вхождение %q", test.message, hint, test.want)
 			}
 		})
+	}
+}
+
+func TestIncompleteCopyHintPrintsRecoveryCommands(t *testing.T) {
+	hint := hintForScanError("file blobs/sha256/69d562d8 not found in tar", "repo/app:5.4.1")
+	for _, want := range []string{
+		"docker rmi repo/app:5.4.1 && docker pull repo/app:5.4.1",
+		"cio analyze --trivy-image-src remote repo/app:5.4.1",
+	} {
+		if !strings.Contains(hint, want) {
+			t.Errorf("в подсказке нет фрагмента %q: %q", want, hint)
+		}
+	}
+	if strings.Contains(hint, "перекачайте образ") {
+		t.Errorf("вернулся неверный совет про docker pull: %q", hint)
+	}
+
+	// Без имени образа подставляется заглушка: подсказка остаётся понятной.
+	placeholder := hintForScanError("unable to get uncompressed layer: file not found", "")
+	if !strings.Contains(placeholder, "<образ>") {
+		t.Errorf("нет заглушки имени образа: %q", placeholder)
 	}
 }

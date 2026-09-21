@@ -124,6 +124,7 @@ func TestTableWithScanFailureShowsCause(t *testing.T) {
 		"недоступно: trivy (docker:aquasec/trivy:latest)",
 		"UNAUTHORIZED",
 		"подсказка:",
+		"--trivy-docker-socket",
 		"TRIVY_USERNAME и TRIVY_PASSWORD",
 		"команда:    docker run --rm aquasec/trivy:latest image --format json app:5.4.1",
 	} {
@@ -134,6 +135,27 @@ func TestTableWithScanFailureShowsCause(t *testing.T) {
 	for _, noise := range []string{"scanner.go:", "createLocalService"} {
 		if strings.Contains(output, noise) {
 			t.Errorf("в отчёт попала трассировка стека %q:\n%s", noise, output)
+		}
+	}
+}
+
+func TestTableWithIncompleteLocalCopyShowsRecoveryCommands(t *testing.T) {
+	report := sampleReport()
+	report.Scan = &analyze.ScanSummary{
+		Source: "trivy",
+		Error: "trivy (trivy): 2026-09-21T13:38:18+03:00 FATAL Fatal error run error: " +
+			"image scan error: scan failed: failed analysis: analyze error: pipeline error: " +
+			"failed to analyze layer: file blobs/sha256/69d562d802ecf589b26643899180ec not found in tar",
+	}
+
+	output := tableOutput(t, report)
+	for _, want := range []string{
+		"not found in tar",
+		"docker rmi myapp:1.0 && docker pull myapp:1.0",
+		"cio analyze --trivy-image-src remote myapp:1.0",
+	} {
+		if !strings.Contains(output, want) {
+			t.Errorf("в отчёте нет фрагмента %q\n%s", want, output)
 		}
 	}
 }
