@@ -34,7 +34,13 @@ func New() (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("не удалось создать docker-клиент: %w", err)
 	}
-	return &Client{cli: cli}, nil
+	return newWithClient(cli), nil
+}
+
+// newWithClient оборачивает готовый клиент Docker API в Client.
+// Нужен тестам: обработка ошибок API проверяется без запущенного демона.
+func newWithClient(cli *client.Client) *Client {
+	return &Client{cli: cli}
 }
 
 // ImageHistory реализует ImageReader.
@@ -43,6 +49,21 @@ func (c *Client) ImageHistory(ctx context.Context, ref string) ([]analyze.Histor
 	if err != nil {
 		return nil, describeError(ref, err)
 	}
+	return historyLayers(result), nil
+}
+
+// ImageInspect реализует ImageReader.
+func (c *Client) ImageInspect(ctx context.Context, ref string) (analyze.ImageMeta, error) {
+	result, err := c.cli.ImageInspect(ctx, ref)
+	if err != nil {
+		return analyze.ImageMeta{}, describeError(ref, err)
+	}
+	return imageMeta(result), nil
+}
+
+// historyLayers преобразует ответ Docker API в слои истории для отчёта.
+// Вынесено отдельно от вызова API: преобразование проверяется тестом без демона.
+func historyLayers(result client.ImageHistoryResult) []analyze.HistoryLayer {
 	layers := make([]analyze.HistoryLayer, 0, len(result.Items))
 	for _, item := range result.Items {
 		layers = append(layers, analyze.HistoryLayer{
@@ -53,15 +74,11 @@ func (c *Client) ImageHistory(ctx context.Context, ref string) ([]analyze.Histor
 			Size:      item.Size,
 		})
 	}
-	return layers, nil
+	return layers
 }
 
-// ImageInspect реализует ImageReader.
-func (c *Client) ImageInspect(ctx context.Context, ref string) (analyze.ImageMeta, error) {
-	result, err := c.cli.ImageInspect(ctx, ref)
-	if err != nil {
-		return analyze.ImageMeta{}, describeError(ref, err)
-	}
+// imageMeta преобразует метаданные образа из ответа Docker API.
+func imageMeta(result client.ImageInspectResult) analyze.ImageMeta {
 	return analyze.ImageMeta{
 		ID:           result.ID,
 		RepoTags:     result.RepoTags,
@@ -70,7 +87,7 @@ func (c *Client) ImageInspect(ctx context.Context, ref string) (analyze.ImageMet
 		OS:           result.Os,
 		Created:      result.Created,
 		Size:         result.Size,
-	}, nil
+	}
 }
 
 // Close реализует ImageReader.
