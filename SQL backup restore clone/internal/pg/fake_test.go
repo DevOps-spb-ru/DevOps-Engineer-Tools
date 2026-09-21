@@ -19,6 +19,9 @@ type fakeRunner struct {
 	missing map[string]bool
 	// failures — утилиты, которые завершаются ошибкой; значение — текст stderr.
 	failures map[string]string
+	// queued — ответы утилиты по очереди: используется там, где одна и та же
+	// утилита вызывается несколько раз с разными запросами.
+	queued map[string][]string
 }
 
 // newFakeRunner создаёт подмену без подготовленных ответов.
@@ -27,6 +30,7 @@ func newFakeRunner() *fakeRunner {
 		responses: make(map[string]string),
 		missing:   make(map[string]bool),
 		failures:  make(map[string]string),
+		queued:    make(map[string][]string),
 	}
 }
 
@@ -64,6 +68,11 @@ func (f *fakeRunner) Output(_ context.Context, name string, args []string) ([]by
 	if message, ok := f.failures[tool]; ok {
 		return nil, fmt.Errorf("exit status 1: %s", message)
 	}
+	if answers := f.queued[tool]; len(answers) > 0 {
+		answer := answers[0]
+		f.queued[tool] = answers[1:]
+		return []byte(answer), nil
+	}
 	return []byte(f.responses[tool]), nil
 }
 
@@ -71,6 +80,16 @@ func (f *fakeRunner) Output(_ context.Context, name string, args []string) ([]by
 func (f *fakeRunner) record(name string, args []string) string {
 	f.calls = append(f.calls, PrintableCommand(name, args))
 	return toolName(name, args)
+}
+
+// pushQueue задаёт ответы утилиты по очереди: очередь нужна там, где один и тот
+// же процесс (psql) вызывается несколько раз с разными запросами и ответы
+// должны отличаться (например, проверка базы и чтение её параметров).
+func (f *fakeRunner) pushQueue(tool string, answers ...string) {
+	if f.queued == nil {
+		f.queued = make(map[string][]string)
+	}
+	f.queued[tool] = append(f.queued[tool], answers...)
 }
 
 // toolName определяет утилиту по аргументам: в режиме sudo имя процесса — sudo,
