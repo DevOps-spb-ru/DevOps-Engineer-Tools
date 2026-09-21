@@ -68,8 +68,8 @@ GitHub Actions (`.github/workflows`):
 | Workflow | Что проверяет |
 | --- | --- |
 | `ci.yml` | для каждого инструмента (`cio` и `sqlbrc`): линт (`golangci-lint` с правилами безопасности), достижимые уязвимости зависимостей (`govulncheck`), тесты (`go vet`, `go test -race`, покрытие в артефакте) и сборка бинаря; отдельный job собирает образ и проверяет, что он запускается под непривилегированным пользователем `cio` |
-| `trivy-scan.yml` | уязвимости, секреты и конфигурацию образа и файловой системы `cio`; находки CRITICAL/HIGH роняют прогон, отчёты уходят в GitHub Security |
-| `codeql.yml` | статический анализ Go-кода (модуль `cio`), отчёты — в GitHub Security |
+| `trivy-scan.yml` | уязвимости, секреты и конфигурацию образа `cio` и файловой системы каждого инструмента (`cio`, `sqlbrc`); находки CRITICAL/HIGH роняют прогон, отчёты уходят в GitHub Security |
+| `codeql.yml` | статический анализ Go-кода обоих модулей (`cio`, `sqlbrc`), отчёты — в GitHub Security |
 
 В `.trivyignore` лежат исключения на уязвимости **встроенного в образ сканера** Trivy: каждое
 с указанием срока годности (`exp`), после которого «ворота» снова падают и список нужно перепроверить.
@@ -78,11 +78,12 @@ GitHub Actions (`.github/workflows`):
 Сторонние экшены закреплены по SHA, обновления приходят через Dependabot (`.github/dependabot.yml`):
 модули Go, GitHub Actions и образы из `Dockerfile`.
 
-Схема тегов — `<инструмент>-vX.Y.Z`. Сейчас настроен релиз `cio` (`.github/workflows/release.yml`, тег
-`cio-vX.Y.Z`): бинари для linux/amd64, linux/arm64, darwin/arm64 и windows/amd64, GitHub Release
-с `SHA256SUMS`, SBOM в формате CycloneDX и attestation сборки, образ `ghcr.io/devops-spb-ru/cio` с SBOM,
-provenance и подписью cosign (keyless). Для `sqlbrc` релизный workflow (бинари, образ) появится
-в 0.3.0 вместе с веб-интерфейсом и поставкой в контейнере.
+Схема тегов — `<инструмент>-vX.Y.Z`. `.github/workflows/release.yml` запускается по тегам `cio-vX.Y.Z`
+и `sqlbrc-vX.Y.Z`; общая часть — сборка бинарей (linux/amd64, linux/arm64, darwin/arm64,
+windows/amd64), `SHA256SUMS`, SBOM в формате CycloneDX, attestation сборки и GitHub Release — вынесена
+в вызываемый workflow `.github/workflows/release-binaries.yml`. Образ `ghcr.io/devops-spb-ru/cio`
+с SBOM, provenance и подписью cosign (keyless) публикуется по тегу `cio-vX.Y.Z`: у `sqlbrc` образа
+пока нет, поставка в контейнере появится в 0.3.0 вместе с веб-интерфейсом.
 Версионирование, чеклист релиза и публикация образа — в [CONTRIBUTING.md](CONTRIBUTING.md),
 порядок сообщения об уязвимостях — в [SECURITY.md](SECURITY.md).
 

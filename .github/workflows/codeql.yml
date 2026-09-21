@@ -20,21 +20,30 @@ permissions:
 
 jobs:
   analyze:
-    name: Анализ Go
+    name: Анализ Go (${{ matrix.tool }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
       security-events: write
       actions: read
+    strategy:
+      # Падение анализа одного модуля не должно прятать результат второго.
+      fail-fast: false
+      matrix:
+        include:
+          - tool: cio
+            dir: Container image optimizer
+          - tool: sqlbrc
+            dir: SQL backup restore clone
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: "Container image optimizer/go.mod"
-          cache-dependency-path: "Container image optimizer/go.sum"
+          go-version-file: ${{ matrix.dir }}/go.mod
+          cache-dependency-path: ${{ matrix.dir }}/go.sum
       - name: Инициализировать CodeQL
         uses: github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
         with:
@@ -43,9 +52,11 @@ jobs:
           # autobuild запускает go build в корне репозитория, где нет go.mod.
           build-mode: manual
       - name: Собрать проект для анализа
-        working-directory: Container image optimizer
+        working-directory: ${{ matrix.dir }}
         run: go build -o "${RUNNER_TEMP}/codeql-build/" ./...
       - name: Анализ CodeQL
         uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
         with:
-          category: "/language:go"
+          # Категория уникальна для каждого модуля: с одинаковой категорией отчёты
+          # инструментов перекрывали бы друг друга в GitHub Security.
+          category: "/language:go/${{ matrix.tool }}"

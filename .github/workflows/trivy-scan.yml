@@ -73,12 +73,21 @@ jobs:
           exit-code: "1"
 
   filesystem:
-    name: Файловая система и Dockerfile
+    name: Файловая система и Dockerfile (${{ matrix.tool }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
       security-events: write
+    strategy:
+      # Падение сканирования одного инструмента не должно прятать результат второго.
+      fail-fast: false
+      matrix:
+        include:
+          - tool: cio
+            dir: Container image optimizer
+          - tool: sqlbrc
+            dir: SQL backup restore clone
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -87,7 +96,7 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
-          scan-ref: "${{ env.PROJECT_DIR }}"
+          scan-ref: ${{ matrix.dir }}
           scanners: vuln,secret,misconfig
           format: sarif
           output: trivy-fs.sarif
@@ -98,12 +107,13 @@ jobs:
         uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
         with:
           sarif_file: trivy-fs.sarif
-          category: trivy-container-image-optimizer-fs
+          # Категория уникальна для инструмента: иначе отчёты перекрывали бы друг друга.
+          category: trivy-fs-${{ matrix.tool }}
       - name: Trivy — ворота по зависимостям, секретам и Dockerfile
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
-          scan-ref: "${{ env.PROJECT_DIR }}"
+          scan-ref: ${{ matrix.dir }}
           scanners: vuln,secret,misconfig
           format: table
           severity: CRITICAL,HIGH
