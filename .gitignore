@@ -1,2 +1,11 @@
 .clinerules
 .idea
+.work/
+
+# Go: артефакты сборки и отчёты о покрытии
+bin/
+*.exe
+*.test
+coverage
+coverage.out
+coverage.html
