@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"runtime"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -22,15 +25,21 @@ const (
 
 // analyzeFlags — значения флагов команды analyze.
 type analyzeFlags struct {
-	format        string
-	output        string
-	top           int
-	minLayerSize  string
-	hugeLayerSize string
-	noTrivy       bool
-	trivyBin      string
-	trivyImage    string
-	failOn        string
+	format          string
+	output          string
+	top             int
+	minLayerSize    string
+	hugeLayerSize   string
+	noTrivy         bool
+	trivyBin        string
+	trivyImage      string
+	trivyImageSrc   string
+	trivySocket     bool
+	trivyCache      string
+	trivyArgs       []string
+	trivyTimeout    time.Duration
+	trivySocketPath string
+	failOn          string
 }
 
 func newAnalyzeCommand() *cobra.Command {
@@ -58,6 +67,17 @@ func newAnalyzeCommand() *cobra.Command {
 	cmd.Flags().StringVar(&flags.trivyBin, "trivy-bin", "", "путь к бинарю trivy (по умолчанию — поиск в PATH)")
 	cmd.Flags().StringVar(&flags.trivyImage, "trivy-image", trivy.DefaultImage,
 		"образ trivy для запуска через docker, если бинарь не найден")
+	cmd.Flags().StringVar(&flags.trivyImageSrc, "trivy-image-src", "",
+		"источники образов для Trivy через запятую: docker,containerd,podman,remote "+
+			"(по умолчанию — порядок внутри Trivy)")
+	cmd.Flags().BoolVar(&flags.trivySocket, "trivy-docker-socket", false,
+		"смонтировать сокет Docker в контейнер Trivy, чтобы сканировать локальные образы")
+	cmd.Flags().StringVar(&flags.trivyCache, "trivy-cache", trivy.DefaultCacheVolume,
+		"том с базой уязвимостей Trivy ("+trivy.DisableCacheVolume+" — не сохранять кэш между запусками)")
+	cmd.Flags().StringArrayVar(&flags.trivyArgs, "trivy-arg", nil,
+		"дополнительный аргумент Trivy, можно повторять (например --trivy-arg=--skip-db-update)")
+	cmd.Flags().DurationVar(&flags.trivyTimeout, "trivy-timeout", trivy.DefaultTimeout,
+		"предел времени на один запуск Trivy, например 10m")
 	cmd.Flags().StringVar(&flags.failOn, "fail-on", "",
 		"вернуть код 1, если есть замечания или уязвимости уровня info|low|medium|high|critical и выше")
 
@@ -76,6 +96,19 @@ func runAnalyze(ctx context.Context, out io.Writer, imageRef string, flags *anal
 	failOn, hasThreshold, err := analyze.ParseSeverity(flags.failOn)
 	if err != nil {
 		return fmt.Errorf("флаг --fail-on: %w", err)
+	}
+	if err := trivy.ValidateImageSrc(flags.trivyImageSrc); err != nil {
+		return fmt.Errorf("флаг --trivy-image-src: %w", err)
+	}
+	if flags.trivyTimeout <= 0 {
+		return fmt.Errorf("флаг --trivy-timeout: значение должно быть положительным, получено %s", flags.trivyTimeout)
+	}
+	if flags.trivySocket {
+		socket, socketErr := trivySocketPath(os.Getenv("DOCKER_HOST"))
+		if socketErr != nil {
+			return fmt.Errorf("флаг --trivy-docker-socket: %w", socketErr)
+		}
+		flags.trivySocketPath = socket
 	}
 	if flags.format != formatTable && flags.format != formatJSON {
 		return fmt.Errorf("флаг --format: неизвестный формат %q (ожидается %s или %s)",
@@ -105,6 +138,17 @@ func runAnalyze(ctx context.Context, out io.Writer, imageRef string, flags *anal
 		return &codedError{code: 1, err: fmt.Errorf("найдены замечания уровня %s и выше", failOn)}
 	}
 	return nil
+}
+
+// trivySocketPath возвращает путь к сокету демона для монтирования в контейнер Trivy.
+// Для удалённого демона (DOCKER_HOST=tcp:// или ssh://) монтировать нечего.
+func trivySocketPath(dockerHost string) (string, error) {
+	socket := trivy.SocketPath(dockerHost, runtime.GOOS)
+	if socket == "" {
+		return "", fmt.Errorf("DOCKER_HOST=%q указывает на удалённый демон: сокет нельзя смонтировать, "+
+			"используйте --trivy-image-src remote с кредами реестра", dockerHost)
+	}
+	return socket, nil
 }
 
 // buildReport собирает отчёт по данным Docker API и, если разрешено, Trivy.
@@ -139,14 +183,31 @@ func buildReport(
 		Bin:           flags.trivyBin,
 		FallbackImage: flags.trivyImage,
 		UseDocker:     true,
+		ImageSource:   flags.trivyImageSrc,
+		DockerSocket:  flags.trivySocketPath,
+		CacheVolume:   flags.trivyCache,
+		ExtraArgs:     flags.trivyArgs,
+		Timeout:       flags.trivyTimeout,
 	})
 	summary, scanErr := scanner.Scan(ctx, imageRef)
 	if scanErr != nil {
-		// Отсутствие Trivy не должно ломать анализ размера слоёв: пишем причину в отчёт.
-		summary = &analyze.ScanSummary{Source: "trivy", Error: scanErr.Error()}
+		summary = failedScan(scanErr)
 	}
 	report.Scan = summary
 	return report, nil
+}
+
+// failedScan описывает сбой сканера так, чтобы в отчёте были и причина,
+// и подсказка, и команда для воспроизведения. Отсутствие Trivy не должно ломать
+// анализ слоёв, поэтому ошибка попадает в отчёт, а не возвращается наружу.
+func failedScan(scanErr error) *analyze.ScanSummary {
+	summary := &analyze.ScanSummary{Source: "trivy", Error: scanErr.Error()}
+	var scanError *trivy.ScanError
+	if errors.As(scanErr, &scanError) {
+		summary.Source = scanError.Source
+		summary.Command = scanError.Command
+	}
+	return summary
 }
 
 func writeReport(writer io.Writer, report *analyze.Report, format string) error {

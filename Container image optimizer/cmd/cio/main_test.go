@@ -57,6 +57,16 @@ func TestRunRejectsInvalidInput(t *testing.T) {
 			wantHint: "--min-layer-size",
 		},
 		{
+			name:     "неизвестный источник образов для Trivy",
+			args:     []string{"analyze", "--trivy-image-src", "docer", "alpine:3.20"},
+			wantHint: "--trivy-image-src",
+		},
+		{
+			name:     "нулевой лимит времени Trivy",
+			args:     []string{"analyze", "--trivy-timeout", "0s", "alpine:3.20"},
+			wantHint: "--trivy-timeout",
+		},
+		{
 			name:     "неизвестная команда",
 			args:     []string{"inspect", "alpine:3.20"},
 			wantHint: "unknown command",
