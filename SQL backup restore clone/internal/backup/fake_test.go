@@ -44,6 +44,18 @@ type fakePG struct {
 	restoreErr   error
 	createErr    error
 	terminateErr error
+	// databases, listErr — базы кластера для команды `backup --all`.
+	databases []pg.Database
+	listErr   error
+}
+
+// ListDatabases «возвращает» базы кластера: список нужен `backup --all`.
+func (f *fakePG) ListDatabases(_ context.Context) ([]pg.Database, error) {
+	f.record("list-databases")
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	return f.databases, nil
 }
 
 // newFakePG создаёт подмену с подготовленной базой fse-1234.

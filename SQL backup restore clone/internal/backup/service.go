@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/DevOps-spb-ru/DevOps-Engineer-Tools/sql-backup-restore-clone/internal/config"
@@ -33,6 +34,7 @@ type PG interface {
 	Dump(ctx context.Context, opts pg.DumpOptions, dst io.Writer) error
 	Restore(ctx context.Context, opts pg.RestoreOptions, src io.Reader) error
 	ServerVersion(ctx context.Context) (pg.Version, error)
+	ListDatabases(ctx context.Context) ([]pg.Database, error)
 	DatabaseExists(ctx context.Context, database, pattern string) (bool, error)
 	DatabaseLocale(ctx context.Context, database, pattern string) (pg.Locale, error)
 	DatabaseSize(ctx context.Context, database, pattern string) (int64, error)
@@ -145,6 +147,26 @@ func (s *Service) Backups(database string) ([]store.Backup, error) {
 		backups = append(backups, listed...)
 	}
 	return backups, nil
+}
+
+// ManagedDatabases возвращает базы кластера, которые сервис обслуживает: имя
+// подходит под databases.pattern и не входит в databases.protected. Список нужен
+// `backup --all`: расписание не должно перечислять базы вручную — стенды
+// появляются и удаляются вместе с пайплайном.
+func (s *Service) ManagedDatabases(ctx context.Context) ([]string, error) {
+	databases, err := s.pg.ListDatabases(ctx)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(databases))
+	for _, database := range databases {
+		if s.cfg.Databases.Allowed(database.Name) {
+			names = append(names, database.Name)
+		}
+	}
+	// Порядок стабилен: по журналу задач видно, в каком порядке шли бэкапы.
+	slices.Sort(names)
+	return names, nil
 }
 
 // Databases возвращает базы, у которых есть каталог в хранилище: сервис не
