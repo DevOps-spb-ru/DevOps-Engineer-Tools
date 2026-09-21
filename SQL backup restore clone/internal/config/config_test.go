@@ -38,7 +38,7 @@ func TestDefault(t *testing.T) {
 	if cfg.Postgres.Mode != pg.ModeSudo || cfg.Postgres.SudoUser != pg.DefaultSudoUser {
 		t.Errorf("режим PostgreSQL по умолчанию: %+v", cfg.Postgres)
 	}
-	if cfg.Storage.Dir != "/var/backups" {
+	if cfg.Storage.Dir != "/var/backups/sqlbrc" {
 		t.Errorf("каталог бэкапов = %q", cfg.Storage.Dir)
 	}
 	if cfg.Databases.Pattern != pg.DefaultAllowPattern {
@@ -413,9 +413,12 @@ func TestDatabasesAllowed(t *testing.T) {
 		want bool
 	}{
 		{name: "стенд по умолчанию", cfg: Default().Databases, db: "fse-1234", want: true},
+		{name: "другой префикс стенда", cfg: Default().Databases, db: "fssd-7", want: true},
+		{name: "дефис в префиксе стенда", cfg: Default().Databases, db: "dops-fix-42", want: true},
 		{name: "служебная база", cfg: Default().Databases, db: "postgres", want: false},
 		{name: "шаблон базы", cfg: Default().Databases, db: "template0", want: false},
-		{name: "чужая база", cfg: Default().Databases, db: "", want: false},
+		{name: "чужая база без номера стенда", cfg: Default().Databases, db: "prod", want: false},
+		{name: "номер не в конце имени", cfg: Default().Databases, db: "fse-1234-x", want: false},
 		{name: "верхний регистр", cfg: Default().Databases, db: "FSE-1", want: false},
 		{name: "пустое имя", cfg: Default().Databases, db: "", want: false},
 		{
@@ -460,8 +463,15 @@ func TestCompileDatabasesPattern(t *testing.T) {
 	if err != nil {
 		t.Fatalf("неожиданная ошибка: %v", err)
 	}
-	if !compiled.MatchString("fse-1") {
-		t.Error("шаблон по умолчанию не подходит стенду fse-1")
+	for _, name := range []string{"fse-1", "fssd-7", "dops-fix-42"} {
+		if !compiled.MatchString(name) {
+			t.Errorf("шаблон по умолчанию не подходит стенду %s", name)
+		}
+	}
+	for _, name := range []string{"prod", "fse-prod", "template0"} {
+		if compiled.MatchString(name) {
+			t.Errorf("шаблон по умолчанию разрешает чужую базу %s", name)
+		}
 	}
 	if _, err := (DatabasesConfig{Pattern: "["}).Compile(); err == nil {
 		t.Error("некорректный шаблон не дал ошибки")

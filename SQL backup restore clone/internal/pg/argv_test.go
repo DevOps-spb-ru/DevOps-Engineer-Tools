@@ -200,8 +200,8 @@ func TestRestoreArgv(t *testing.T) {
 		},
 		{
 			name: "чтение оглавления архива",
-			args: RestoreArgs{ListOnly: true, Archive: "/var/backups/fse-1/2026.dump"},
-			want: "--list /var/backups/fse-1/2026.dump",
+			args: RestoreArgs{ListOnly: true, Archive: "/var/backups/sqlbrc/fse-1/2026.dump"},
+			want: "--list /var/backups/sqlbrc/fse-1/2026.dump",
 		},
 		{name: "оглавление без файла", args: RestoreArgs{ListOnly: true}, wantErr: true},
 		{name: "имя базы вне шаблона", args: RestoreArgs{DB: "postgres"}, wantErr: true},

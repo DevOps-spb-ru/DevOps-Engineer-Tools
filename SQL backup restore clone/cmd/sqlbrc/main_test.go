@@ -33,7 +33,7 @@ func writeConfig(t *testing.T, document string) string {
 }
 
 // validConfigDocument — конфиг из README: интерфейс на 0.0.0.0:8088 без TLS
-// с осознанным allow_insecure, один встроенный пользователь, каталог /var/backups.
+// с осознанным allow_insecure, один встроенный пользователь, каталог /var/backups/sqlbrc.
 const validConfigDocument = `
 server:
   listen: "0.0.0.0:8088"
@@ -45,7 +45,7 @@ auth:
 postgres:
   sudo_user: postgres
 storage:
-  dir: "/var/backups"
+  dir: "/var/backups/sqlbrc"
   keep_last: 7
 `
 

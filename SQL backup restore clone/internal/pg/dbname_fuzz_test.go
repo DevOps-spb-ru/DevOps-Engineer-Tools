@@ -10,6 +10,7 @@ func FuzzValidateDBName(f *testing.F) {
 		"fse-1234", "postgres", "template0", "", " ", "-", ".", "..",
 		"fse-1234; rm -rf /", "../../etc/passwd", "FSE-1234",
 		"fse-1234\n--", " fse ", "fse-1234\x00",
+		"fssd-7", "dops-fix-42", "fse-prod", "fse-1234-x",
 	}
 	for _, seed := range seeds {
 		f.Add(seed)

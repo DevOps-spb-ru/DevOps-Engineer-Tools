@@ -35,7 +35,7 @@ auth:
 postgres:
   sudo_user: postgres
 storage:
-  dir: "/var/backups"
+  dir: "/var/backups/sqlbrc"
   keep_last: 7
 `
 
@@ -51,7 +51,7 @@ func TestLoad(t *testing.T) {
 	if cfg.SchemaVersion != SchemaVersion {
 		t.Errorf("schema_version = %d, ожидался %d", cfg.SchemaVersion, SchemaVersion)
 	}
-	if cfg.Storage.KeepLast != 7 || cfg.Storage.Dir != "/var/backups" {
+	if cfg.Storage.KeepLast != 7 || cfg.Storage.Dir != "/var/backups/sqlbrc" {
 		t.Errorf("настройки хранения не применились: %+v", cfg.Storage)
 	}
 	if cfg.Postgres.Mode != "sudo" || cfg.Postgres.BinDir != "/usr/bin" {

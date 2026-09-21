@@ -280,7 +280,7 @@ func TestScanBinaryHonorsScannerOptions(t *testing.T) {
 		LookPath:    stubLookPath(nil),
 		Runner:      runner,
 	})
-	image := "docker-hub.iitdgroup.ru/finsynapse/back:5.4.1"
+	image := "registry.example.com/team/app:5.4.1"
 	summary, err := scanner.Scan(context.Background(), image)
 	if err != nil {
 		t.Fatalf("Scan: неожиданная ошибка: %v", err)

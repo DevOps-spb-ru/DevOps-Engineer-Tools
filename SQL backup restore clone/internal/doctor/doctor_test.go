@@ -714,7 +714,7 @@ func TestValidateFormat(t *testing.T) {
 // TestNewestArchive проверяет поиск самого свежего архива: каталог бэкапов
 // содержит подкаталоги по базам, а файлы метаданных — не архивы.
 func TestNewestArchive(t *testing.T) {
-	dir := "/var/backups"
+	dir := "/var/backups/sqlbrc"
 	fsFake := newFakeFS()
 	fsFake.addDir(dir, 0o750)
 	fsFake.addDir(filepath.Join(dir, "fse-1"), 0o750)

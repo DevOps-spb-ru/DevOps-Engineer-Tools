@@ -129,7 +129,9 @@ func (p PostgresConfig) Prefix() pg.Prefix {
 
 // StorageConfig — где лежат бэкапы и служебные данные сервиса.
 type StorageConfig struct {
-	// Dir — каталог бэкапов, например /var/backups.
+	// Dir — каталог бэкапов сервиса, например /var/backups/sqlbrc.
+	// Это отдельный подкаталог, а не /var/backups целиком: политика хранения
+	// удаляет старые дампы, поэтому рядом не должно быть чужих файлов.
 	Dir string `yaml:"dir"`
 	// StateDir — служебный каталог сервиса: журнал задач, аудит, служебные файлы.
 	StateDir string `yaml:"state_dir"`
@@ -145,7 +147,8 @@ type StorageConfig struct {
 
 // DatabasesConfig — какие БД обслуживаются.
 type DatabasesConfig struct {
-	// Pattern — шаблон имён обслуживаемых БД (стенды вида fse-1234).
+	// Pattern — шаблон имён обслуживаемых БД: стенды вида <префикс>-<номер>
+	// (fse-1234, fssd-7, dops-fix-42).
 	Pattern string `yaml:"pattern"`
 	// Protected — БД, которые сервис не трогает даже при совпадении с шаблоном.
 	Protected []string `yaml:"protected"`
@@ -217,7 +220,7 @@ type LoggingConfig struct {
 }
 
 // Default возвращает конфигурацию по умолчанию для сервера из README:
-// Debian 12, PostgreSQL 15, бэкапы в /var/backups, интерфейс на 0.0.0.0:8088.
+// Debian 12, PostgreSQL 15, бэкапы в /var/backups/sqlbrc, интерфейс на 0.0.0.0:8088.
 func Default() Configuration {
 	return Configuration{
 		SchemaVersion: SchemaVersion,
@@ -240,7 +243,7 @@ func Default() Configuration {
 			Timeout:  Duration(pg.DefaultTimeout),
 		},
 		Storage: StorageConfig{
-			Dir:          "/var/backups",
+			Dir:          "/var/backups/sqlbrc",
 			StateDir:     "/var/lib/sqlbrc",
 			KeepLast:     7,
 			KeepDays:     14,

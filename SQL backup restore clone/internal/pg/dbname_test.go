@@ -13,7 +13,14 @@ func TestValidateDBName(t *testing.T) {
 		wantErr  bool
 	}{
 		{name: "стенд по умолчанию", database: "fse-1234"},
+		{name: "другой префикс стенда", database: "fssd-7"},
+		{name: "дефис и цифра в префиксе", database: "dops-fix-42"},
 		{name: "пользовательский шаблон", database: "stand-1", pattern: `^(stand)-[a-z0-9-]+$`},
+		{name: "чужой префикс", database: "prod-1", pattern: `^fse-[0-9]+$`, wantErr: true},
+		{name: "имя без номера стенда", database: "fse-prod", wantErr: true},
+		{name: "номер не в конце имени", database: "fse-1234-x", wantErr: true},
+		{name: "префикс без номера", database: "fse-", wantErr: true},
+		{name: "шаблон базы с цифрой", database: "template0", wantErr: true},
 		{name: "пустое имя", database: "", wantErr: true},
 		{name: "пробел", database: " ", wantErr: true},
 		{name: "служебная база не подходит под шаблон", database: "postgres", wantErr: true},

@@ -190,7 +190,7 @@ func (c Configuration) validatePostgres(found *problems) {
 // validateStorage проверяет каталоги, политику хранения и порог свободного места.
 func (c Configuration) validateStorage(found *problems) {
 	if !isAbsoluteUnixPath(c.Storage.Dir) {
-		found.add("storage.dir: %q должен быть абсолютным путём (пример: /var/backups)", c.Storage.Dir)
+		found.add("storage.dir: %q должен быть абсолютным путём (пример: /var/backups/sqlbrc)", c.Storage.Dir)
 	}
 	if !isAbsoluteUnixPath(c.Storage.StateDir) {
 		found.add("storage.state_dir: %q должен быть абсолютным путём (пример: /var/lib/sqlbrc)", c.Storage.StateDir)

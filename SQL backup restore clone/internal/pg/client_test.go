@@ -205,7 +205,7 @@ func TestClientListArchive(t *testing.T) {
 	runner := newFakeRunner()
 	runner.responses["pg_restore"] = string(readTestdata(t, "pg_restore_list.txt"))
 
-	entries, err := newTestClient(runner).ListArchive(context.Background(), "/var/backups/fse-1/2026.dump")
+	entries, err := newTestClient(runner).ListArchive(context.Background(), "/var/backups/sqlbrc/fse-1/2026.dump")
 	if err != nil {
 		t.Fatalf("неожиданная ошибка: %v", err)
 	}
@@ -213,7 +213,7 @@ func TestClientListArchive(t *testing.T) {
 		t.Fatalf("объектов %d, ожидалось 7", len(entries))
 	}
 	call := runner.lastCall()
-	if !strings.Contains(call, "--list /var/backups/fse-1/2026.dump") {
+	if !strings.Contains(call, "--list /var/backups/sqlbrc/fse-1/2026.dump") {
 		t.Errorf("pg_restore вызван не с ключом --list: %s", call)
 	}
 }
