@@ -202,8 +202,8 @@ func (c Configuration) validateTCP(found *problems) {
 		found.add("postgres.host: не задан адрес сервера (пример: 127.0.0.1 или имя службы)")
 	}
 	port := strings.TrimSpace(c.Postgres.Port)
-	switch {
-	case port == "":
+	switch port {
+	case "":
 		found.add("postgres.port: не задан порт сервера (пример: 5432)")
 	default:
 		if number, err := strconv.Atoi(port); err != nil || number < 1 || number > 65535 {
@@ -211,8 +211,8 @@ func (c Configuration) validateTCP(found *problems) {
 		}
 	}
 	role := strings.TrimSpace(c.Postgres.Role)
-	switch {
-	case role == "":
+	switch role {
+	case "":
 		found.add("postgres.role: не задана роль: в режиме tcp сервис подключается по сети от имени роли")
 	default:
 		if err := pg.ValidateIdentifier(role, "postgres.role"); err != nil {
