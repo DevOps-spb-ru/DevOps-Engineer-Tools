@@ -148,7 +148,9 @@ type StorageConfig struct {
 // DatabasesConfig — какие БД обслуживаются.
 type DatabasesConfig struct {
 	// Pattern — шаблон имён обслуживаемых БД: стенды вида <префикс>-<номер>
-	// (fse-1234, fssd-7, dops-fix-42).
+	// (fse-1234, fssd-7, dops-fix-42). Префикс может состоять из нескольких
+	// сегментов, а номер в конце обязателен. Шаблон обязан быть заякорен
+	// («^…$»): незаякоренный совпадает с частью имени и берёт чужую базу.
 	Pattern string `yaml:"pattern"`
 	// Protected — БД, которые сервис не трогает даже при совпадении с шаблоном.
 	Protected []string `yaml:"protected"`
@@ -160,7 +162,9 @@ type DatabasesConfig struct {
 	TerminateOnRestore bool `yaml:"terminate_on_restore"`
 }
 
-// Compile компилирует шаблон имён БД.
+// Compile компилирует шаблон имён БД. Незаякоренный шаблон отвергается: он
+// применяется через MatchString и совпал бы с частью имени (шаблон «[0-9]+$»
+// объявил бы «своей» чужую базу prod-1).
 func (d DatabasesConfig) Compile() (*regexp.Regexp, error) {
 	pattern := strings.TrimSpace(d.Pattern)
 	if pattern == "" {
@@ -169,6 +173,11 @@ func (d DatabasesConfig) Compile() (*regexp.Regexp, error) {
 	compiled, err := regexp.Compile(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("databases.pattern: шаблон %q некорректен: %w", d.Pattern, err)
+	}
+	if !pg.IsAnchoredPattern(pattern) {
+		return nil, fmt.Errorf(
+			"databases.pattern: шаблон %q не заякорен: без «^» и «$» он совпадает с частью имени, и сервис возьмёт чужую базу (пример: %s)",
+			d.Pattern, pg.DefaultAllowPattern)
 	}
 	return compiled, nil
 }

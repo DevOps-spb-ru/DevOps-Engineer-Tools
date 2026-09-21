@@ -15,8 +15,11 @@ func TestValidateDBName(t *testing.T) {
 		{name: "стенд по умолчанию", database: "fse-1234"},
 		{name: "другой префикс стенда", database: "fssd-7"},
 		{name: "дефис и цифра в префиксе", database: "dops-fix-42"},
+		{name: "многосоставный префикс стенда", database: "stand-team-42"},
 		{name: "пользовательский шаблон", database: "stand-1", pattern: `^(stand)-[a-z0-9-]+$`},
 		{name: "чужой префикс", database: "prod-1", pattern: `^fse-[0-9]+$`, wantErr: true},
+		{name: "незаякоренный шаблон", database: "stand-1", pattern: `[0-9]+$`, wantErr: true},
+		{name: "шаблон без правого якоря", database: "stand-1", pattern: `^stand-[0-9]+`, wantErr: true},
 		{name: "имя без номера стенда", database: "fse-prod", wantErr: true},
 		{name: "номер не в конце имени", database: "fse-1234-x", wantErr: true},
 		{name: "префикс без номера", database: "fse-", wantErr: true},
@@ -47,6 +50,31 @@ func TestValidateDBName(t *testing.T) {
 				t.Fatalf("ValidateDBName(%q): неожиданная ошибка: %v", test.database, err)
 			}
 		})
+	}
+}
+
+// TestIsAnchoredPattern проверяет правило «шаблон имён БД должен быть заякорен»:
+// MatchString без якорей находит шаблон в середине имени, и сервис счёл бы своей
+// чужую базу.
+func TestIsAnchoredPattern(t *testing.T) {
+	tests := []struct {
+		pattern string
+		want    bool
+	}{
+		{pattern: "", want: true},
+		{pattern: DefaultAllowPattern, want: true},
+		{pattern: `^stand-[0-9]+$`, want: true},
+		{pattern: `  ^stand-[0-9]+$  `, want: true},
+		{pattern: `^.*$`, want: true},
+		{pattern: `[0-9]+$`, want: false},
+		{pattern: `^stand-[0-9]+`, want: false},
+		{pattern: `stand-[0-9]+`, want: false},
+	}
+
+	for _, test := range tests {
+		if got := IsAnchoredPattern(test.pattern); got != test.want {
+			t.Errorf("IsAnchoredPattern(%q) = %v, ожидалось %v", test.pattern, got, test.want)
+		}
 	}
 }
 

@@ -151,6 +151,10 @@ func ValidateIdentifier(value, field string) error {
 type DumpArgs struct {
 	// DB — имя базы данных.
 	DB string
+	// Pattern — шаблон имён БД из databases.pattern, то есть какие базы сервис
+	// считает своими. Пустое значение означает DefaultAllowPattern; шаблон из
+	// конфига передаётся явно, иначе сужение шаблона не влияло бы на запуск.
+	Pattern string
 	// Connection — аргументы подключения из Prefix.ConnectionArgs.
 	Connection []string
 	// Format — формат архива (по умолчанию FormatCustom).
@@ -199,9 +203,11 @@ var restoreForbiddenArgs = []string{
 }
 
 // DumpArgv формирует аргументы pg_dump: подключение, формат, сжатие и имя БД
-// передаются отдельными элементами массива.
+// передаются отдельными элементами массива. Имя БД проверяется по шаблону
+// a.Pattern (пусто — DefaultAllowPattern), поэтому суженный в конфиге шаблон
+// действует и здесь.
 func DumpArgv(a DumpArgs) ([]string, error) {
-	if err := ValidateDBName(a.DB, DefaultAllowPattern); err != nil {
+	if err := ValidateDBName(a.DB, a.Pattern); err != nil {
 		return nil, err
 	}
 	format := a.Format
@@ -244,6 +250,9 @@ func DumpArgv(a DumpArgs) ([]string, error) {
 type RestoreArgs struct {
 	// DB — имя базы данных для восстановления.
 	DB string
+	// Pattern — шаблон имён БД из databases.pattern (пусто — DefaultAllowPattern):
+	// от него зависит, какую базу сервис считает своей и потому вправе очистить.
+	Pattern string
 	// Archive — путь к архиву. Для списка объектов (ListOnly) архив обязателен,
 	// при восстановлении дамп читается из stdin, чтобы не дублировать файл.
 	Archive string
@@ -269,13 +278,15 @@ type RestoreArgs struct {
 	Extra []string
 }
 
-// RestoreArgv формирует аргументы pg_restore.
+// RestoreArgv формирует аргументы pg_restore. Имя БД проверяется по шаблону
+// a.Pattern (пусто — DefaultAllowPattern): сужение шаблона в конфиге действует
+// и на восстановление.
 func RestoreArgv(a RestoreArgs) ([]string, error) {
 	if a.ListOnly {
 		if strings.TrimSpace(a.Archive) == "" {
 			return nil, errors.New("для списка объектов архива нужен путь к файлу")
 		}
-	} else if err := ValidateDBName(a.DB, DefaultAllowPattern); err != nil {
+	} else if err := ValidateDBName(a.DB, a.Pattern); err != nil {
 		return nil, err
 	}
 	if a.Jobs < 0 || a.Jobs > 32 {

@@ -333,6 +333,14 @@ func TestValidatePostgresAndStorage(t *testing.T) {
 			wantErr:  true,
 		},
 		{
+			// Без якорей шаблон совпадает с частью имени: «[0-9]+$» объявил бы
+			// «своей» чужую базу prod-1.
+			name:     "незаякоренный шаблон имён БД",
+			change:   func(c *Configuration) { c.Databases.Pattern = "[0-9]+$" },
+			wantHint: "databases.pattern",
+			wantErr:  true,
+		},
+		{
 			name:     "пустой защищённый список",
 			change:   func(c *Configuration) { c.Databases.Protected = nil },
 			wantHint: "databases.protected",
@@ -415,6 +423,7 @@ func TestDatabasesAllowed(t *testing.T) {
 		{name: "стенд по умолчанию", cfg: Default().Databases, db: "fse-1234", want: true},
 		{name: "другой префикс стенда", cfg: Default().Databases, db: "fssd-7", want: true},
 		{name: "дефис в префиксе стенда", cfg: Default().Databases, db: "dops-fix-42", want: true},
+		{name: "многосоставный префикс стенда", cfg: Default().Databases, db: "stand-team-42", want: true},
 		{name: "служебная база", cfg: Default().Databases, db: "postgres", want: false},
 		{name: "шаблон базы", cfg: Default().Databases, db: "template0", want: false},
 		{name: "чужая база без номера стенда", cfg: Default().Databases, db: "prod", want: false},
@@ -445,6 +454,14 @@ func TestDatabasesAllowed(t *testing.T) {
 			db:   "stand-42",
 			want: false,
 		},
+		{
+			// Незаякоренный шаблон отвергается целиком: без этого правила он
+			// взял бы чужую базу, найдя совпадение в середине имени.
+			name: "незаякоренный шаблон ничего не разрешает",
+			cfg:  DatabasesConfig{Pattern: `[0-9]+$`},
+			db:   "prod-1",
+			want: false,
+		},
 	}
 
 	for _, test := range tests {
@@ -457,13 +474,14 @@ func TestDatabasesAllowed(t *testing.T) {
 }
 
 // TestCompileDatabasesPattern проверяет компиляцию шаблона: пустой шаблон
-// означает шаблон по умолчанию, а некорректный — ошибку с именем поля.
+// означает шаблон по умолчанию, а некорректный или незаякоренный — ошибку
+// с именем поля.
 func TestCompileDatabasesPattern(t *testing.T) {
 	compiled, err := DatabasesConfig{}.Compile()
 	if err != nil {
 		t.Fatalf("неожиданная ошибка: %v", err)
 	}
-	for _, name := range []string{"fse-1", "fssd-7", "dops-fix-42"} {
+	for _, name := range []string{"fse-1", "fssd-7", "dops-fix-42", "stand-team-42"} {
 		if !compiled.MatchString(name) {
 			t.Errorf("шаблон по умолчанию не подходит стенду %s", name)
 		}
@@ -475,6 +493,20 @@ func TestCompileDatabasesPattern(t *testing.T) {
 	}
 	if _, err := (DatabasesConfig{Pattern: "["}).Compile(); err == nil {
 		t.Error("некорректный шаблон не дал ошибки")
+	}
+	if _, err := (DatabasesConfig{Pattern: "[0-9]+$"}).Compile(); err == nil {
+		t.Error("незаякоренный шаблон не дал ошибки")
+	}
+	// Свой шаблон с многосоставным префиксом: сужает список до стендов команды.
+	custom, err := DatabasesConfig{Pattern: `^stand-team-[0-9]+$`}.Compile()
+	if err != nil {
+		t.Fatalf("неожиданная ошибка для корректного шаблона: %v", err)
+	}
+	if !custom.MatchString("stand-team-7") {
+		t.Error("свой шаблон не подошёл стенду stand-team-7")
+	}
+	if custom.MatchString("stand-7") {
+		t.Error("свой шаблон разрешает стенд с другим префиксом")
 	}
 	if !pg.IsReservedDatabase("template1") {
 		t.Error("template1 должна считаться служебной базой")

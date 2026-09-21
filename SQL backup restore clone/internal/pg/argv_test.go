@@ -125,6 +125,17 @@ func TestDumpArgv(t *testing.T) {
 			want: "--format custom --compress 6 --no-privileges --no-acl --dbname fse-1",
 		},
 		{name: "имя базы вне шаблона", args: DumpArgs{DB: "postgres"}, wantErr: true},
+		{
+			name: "шаблон из конфига",
+			args: DumpArgs{
+				DB: "stand-team-7", Pattern: `^stand-team-[0-9]+$`, Compression: DefaultCompression,
+			},
+			want: "--format custom --compress 6 --dbname stand-team-7",
+		},
+		// Шаблон из конфига ужесточает проверку: база, которую взял бы шаблон
+		// по умолчанию, при суженном шаблоне командой не станет.
+		{name: "имя вне шаблона конфига", args: DumpArgs{DB: "prod-1", Pattern: `^stand-[0-9]+$`}, wantErr: true},
+		{name: "незаякоренный шаблон конфига", args: DumpArgs{DB: "fse-1", Pattern: `[0-9]+$`}, wantErr: true},
 		{name: "пустое имя базы", args: DumpArgs{}, wantErr: true},
 		{name: "формат не поддерживается", args: DumpArgs{DB: "fse-1", Format: "tar"}, wantErr: true},
 		{name: "сжатие вне диапазона", args: DumpArgs{DB: "fse-1", Compression: 12}, wantErr: true},
@@ -205,6 +216,14 @@ func TestRestoreArgv(t *testing.T) {
 		},
 		{name: "оглавление без файла", args: RestoreArgs{ListOnly: true}, wantErr: true},
 		{name: "имя базы вне шаблона", args: RestoreArgs{DB: "postgres"}, wantErr: true},
+		{
+			name: "шаблон из конфига",
+			args: RestoreArgs{DB: "stand-team-7", Pattern: `^stand-team-[0-9]+$`},
+			want: "--dbname stand-team-7",
+		},
+		// Суженный шаблон защищает от восстановления не на ту базу: команда
+		// завершается ошибкой до запуска pg_restore.
+		{name: "имя вне шаблона конфига", args: RestoreArgs{DB: "prod-1", Pattern: `^stand-[0-9]+$`}, wantErr: true},
 		{name: "слишком много процессов", args: RestoreArgs{DB: "fse-1", Jobs: 64}, wantErr: true},
 		{name: "отрицательные процессы", args: RestoreArgs{DB: "fse-1", Jobs: -2}, wantErr: true},
 		{name: "своя база", args: RestoreArgs{DB: "fse-1", Extra: []string{"--dbname", "postgres"}}, wantErr: true},

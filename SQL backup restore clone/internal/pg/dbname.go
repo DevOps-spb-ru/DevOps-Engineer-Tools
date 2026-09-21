@@ -42,14 +42,31 @@ func IsReservedDatabase(name string) bool {
 	return false
 }
 
+// trimAllowPattern приводит шаблон имён БД к рабочему виду: пустой шаблон
+// означает шаблон по умолчанию, а пробелы по краям отбрасываются.
+func trimAllowPattern(allowPattern string) string {
+	if pattern := strings.TrimSpace(allowPattern); pattern != "" {
+		return pattern
+	}
+	return DefaultAllowPattern
+}
+
+// IsAnchoredPattern отвечает, ограничен ли шаблон имён БД началом и концом
+// имени («^» и «$»). Проверка нужна потому, что шаблон применяется через
+// MatchString: незаякоренное выражение совпадает с частью имени, и тогда шаблон
+// вида «[0-9]+$» объявит «своей» чужую базу prod-1, которую сервис очистит при
+// восстановлении. Пустой шаблон считается шаблоном по умолчанию — он заякорен.
+func IsAnchoredPattern(allowPattern string) bool {
+	pattern := trimAllowPattern(allowPattern)
+	return strings.HasPrefix(pattern, "^") && strings.HasSuffix(pattern, "$")
+}
+
 // ValidateDBName проверяет имя БД перед тем, как оно попадёт в argv PostgreSQL
 // и в путь к файлу бэкапа: набор символов ограничен, длина — как у идентификатора,
-// а шаблон владельца данных задаёт конфиг.
+// а шаблон владельца данных задаёт конфиг. Шаблон из конфига обязан быть
+// заякорен: иначе «своей» окажется чужая база (см. IsAnchoredPattern).
 func ValidateDBName(name string, allowPattern string) error {
-	pattern := strings.TrimSpace(allowPattern)
-	if pattern == "" {
-		pattern = DefaultAllowPattern
-	}
+	pattern := trimAllowPattern(allowPattern)
 	if name == "" {
 		return errors.New("имя БД не задано")
 	}
@@ -68,6 +85,11 @@ func ValidateDBName(name string, allowPattern string) error {
 	compiled, err := regexp.Compile(pattern)
 	if err != nil {
 		return fmt.Errorf("шаблон имён БД %q некорректен: %w", pattern, err)
+	}
+	if !IsAnchoredPattern(pattern) {
+		return fmt.Errorf(
+			"шаблон имён БД %q не заякорен: без «^» и «$» он совпадает с частью имени, и сервис возьмёт чужую базу (пример: %s)",
+			pattern, DefaultAllowPattern)
 	}
 	if !compiled.MatchString(name) {
 		return fmt.Errorf("имя БД %q не соответствует шаблону %s", name, pattern)
