@@ -1,0 +1,71 @@
+version: 2
+
+# Зависимости обновляются автоматически: версии Trivy, GitHub Actions и модулей Go
+# иначе «застывают» на теге, который однажды перестанет получать патчи безопасности.
+updates:
+  # Модули Go утилиты cio.
+  - package-ecosystem: gomod
+    directory: "/Container image optimizer"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Europe/Moscow
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "Deps: go"
+    labels:
+      - dependencies
+      - go
+    groups:
+      # Минорные и патч-обновления идут одним PR: разбирать их по одному смысла нет.
+      go-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+      # Уязвимости обновляются отдельными PR, чтобы фикс не ждал остальных изменений.
+      go-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # GitHub Actions: теги в workflows фиксируются по SHA, обновляет их Dependabot.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:10"
+      timezone: Europe/Moscow
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "Deps: actions"
+    labels:
+      - dependencies
+      - github-actions
+    groups:
+      actions-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+      actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # Образы в Dockerfile: golang-alpine (сборка), aquasec/trivy (сканер), alpine (runtime).
+  - package-ecosystem: docker
+    directory: "/Container image optimizer"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:20"
+      timezone: Europe/Moscow
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "Deps: docker"
+    labels:
+      - dependencies
+      - docker

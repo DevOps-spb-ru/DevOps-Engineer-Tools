@@ -1,45 +1,112 @@
 name: Trivy scan
 
-# Отдельный workflow: сканирование собранного образа утилиты и загрузка отчёта в GitHub Security.
+# Сканирование образа, файловой системы и Dockerfile.
+# Отчёты загружаются в GitHub Security (SARIF), а находки уровня CRITICAL/HIGH
+# роняют прогон: это «ворота», а не просто отчёт.
 on:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
   schedule:
     - cron: "0 3 * * 1"
   workflow_dispatch:
 
+concurrency:
+  group: trivy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
-  security-events: write
 
 env:
   PROJECT_DIR: Container image optimizer
   IMAGE_TAG: cio:scan
 
 jobs:
-  scan:
-    name: Сканирование образа
+  image:
+    name: Образ
     runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      security-events: write
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4.4.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Собрать образ
-        uses: docker/build-push-action@v7.4.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: "${{ env.PROJECT_DIR }}"
           push: false
           load: true
           tags: ${{ env.IMAGE_TAG }}
       - name: Trivy (SARIF)
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ env.IMAGE_TAG }}
           format: sarif
-          output: trivy-results.sarif
+          output: trivy-image.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "0"
+      - name: Загрузить отчёт в GitHub Security
+        # В PR из форка токен не имеет права писать в Security: загрузку пропускаем,
+        # сама проверка ниже всё равно выполняется.
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-container-image-optimizer
+      - name: Trivy — ворота по уязвимостям образа
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE_TAG }}
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          # Исключения — только для встроенного в образ сканера, со сроком годности:
+          # что именно исключено и почему, описано в .trivyignore.
+          trivyignores: .trivyignore
+          exit-code: "1"
+
+  filesystem:
+    name: Файловая система и Dockerfile
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Trivy fs (SARIF)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: "${{ env.PROJECT_DIR }}"
+          scanners: vuln,secret,misconfig
+          format: sarif
+          output: trivy-fs.sarif
           severity: CRITICAL,HIGH
           exit-code: "0"
       - name: Загрузить отчёт в GitHub Security
-        uses: github/codeql-action/upload-sarif@v4
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
         with:
-          sarif_file: trivy-results.sarif
-          category: trivy-container-image-optimizer
+          sarif_file: trivy-fs.sarif
+          category: trivy-container-image-optimizer-fs
+      - name: Trivy — ворота по зависимостям, секретам и Dockerfile
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: "${{ env.PROJECT_DIR }}"
+          scanners: vuln,secret,misconfig
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
