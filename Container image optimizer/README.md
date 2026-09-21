@@ -117,8 +117,22 @@ docker save myapp:1.0 -o image.tar
 (Get-Item image.tar).Length / 1MB   # должно быть сопоставимо с размером образа
 ```
 
-Архив в несколько килобайт вместо сотен мегабайт означает, что слои в локальном хранилище неполные:
-перекачайте образ (`docker pull myapp:1.0`) или сканируйте из реестра (`--trivy-image-src remote`).
+Архив в несколько килобайт вместо сотен мегабайт означает, что слои в локальном хранилище неполные.
+`docker pull` такую копию не лечит: Docker считает тег актуальным и отвечает `Image is up to date`,
+поэтому копию нужно пересоздать:
+
+```powershell
+docker rmi myapp:1.0
+docker pull myapp:1.0
+```
+
+Альтернатива без удаления — сканировать из реестра: `cio analyze --trivy-image-src remote myapp:1.0`
+(креды берутся из `docker login` или из `TRIVY_USERNAME`/`TRIVY_PASSWORD`).
+
+В Docker Desktop с containerd image store (`docker info` → `GraphDriver: null`) тех же слоёв может не быть
+и в самом хранилище: тогда и `docker save`, и containerd-источник Trivy падают с `not found in tar` /
+`content digest ... not found`, хотя `docker image inspect` показывает все слои, а `docker system df` —
+полный размер. Локально такой образ не сканируется: помогает только пересоздание копии или источник `remote`.
 
 ## Пример вывода (фрагмент)
 
@@ -207,8 +221,12 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock cio:local analyze a
   недоступно (в отчёте появится строка «недоступно: ...» с причиной и подсказкой, код возврата при этом
   остаётся 0, если не задан `--fail-on`);
 - Trivy читает локальный образ через `docker save`: если локальная копия неполная (архив в несколько
-  килобайт вместо размера образа), сканирование падает с `not found in tar` — перекачайте образ
-  (`docker pull`) или используйте `--trivy-image-src remote`;
+  килобайт вместо размера образа), сканирование падает с `not found in tar` — пересоздайте копию
+  (`docker rmi`, затем `docker pull`) или используйте `--trivy-image-src remote`; один `docker pull`
+  копию не пересоздаёт (Docker отвечает `Image is up to date`);
+- в Docker Desktop с containerd image store копия может быть неполной и в самом хранилище слоёв:
+  containerd-источник Trivy падает так же (`content digest ... not found`), поэтому локальное
+  сканирование такого образа невозможно — остаётся источник `remote`;
 - анализ делается по локальному образу: если образа нет на машине, сначала выполните `docker pull`.
 
 ## Лицензия
