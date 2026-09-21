@@ -9,6 +9,23 @@
   секреты в слое, тулчейн сборки в финальном образе, `curl | sh` и другие;
 - **что уязвимо** — отчёт Trivy: уязвимости пакетов и мисконфигурации.
 
+## Зачем это нужно
+
+Образ растёт от сборки к сборке, а причину видно только по косвенным признакам: логи CI, вывод
+`docker system df`, жалобы на долгий `docker pull`. `cio` отвечает на эти вопросы одним отчётом —
+по уже собранному образу, без пересборки и без изменений в системе.
+
+| Боль | Что показывает `cio` |
+| --- | --- |
+| «образ вырос до 1.2 GB, непонятно из-за чего» | топ-N слоёв с долей от размера образа и командой, которой слой создан |
+| «в финальный образ попал тулчейн сборки или кэш пакетного менеджера» | правила `build-toolchain-in-final-image`, `*-cache-not-cleaned` с рекомендацией |
+| «секрет зафиксирован в истории сборки» | правило `secret-in-layer` (`ENV`/`ARG` в слое) |
+| «нужен отчёт об уязвимостях прямо в пайплайне» | Trivy: уязвимости по уровням и мисконфигурации, `--format json` для машин |
+| «нужно блокировать изменения, из-за которых образ растёт» | `--fail-on` — код возврата 1 при находках уровня и выше |
+
+Отчёт снимается с готового образа, поэтому запускать его можно и в CI (сразу после `docker build`
+или `docker pull`), и на рабочей машине — пересборка для анализа не нужна.
+
 ## Возможности
 
 - топ-N самых больших слоёв с долей от размера образа;
@@ -18,6 +35,27 @@
 - форматы отчёта: `table` (для человека) и `json` (для CI и интеграций);
 - код возврата 1 при находках уровня `--fail-on` — удобно встраивать в пайплайны;
 - утилита **только читает** данные об образах: ничего не собирает, не удаляет и не изменяет.
+
+## Преимущества и отличия
+
+`cio` не заменяет существующие инструменты, а собирает их ответы в один отчёт: размер и историю
+слоёв из Docker Engine API, замечания по сборке из собственных правил, уязвимости из Trivy.
+
+| Инструмент | Что даёт | Чего не хватает для регулярной работы |
+| --- | --- | --- |
+| `docker history` | размер и команды слоёв | нет правил и уязвимостей, разбор вручную |
+| `dive` | интерактивный просмотр содержимого слоёв | нужен TTY, отчёта для CI нет |
+| `trivy image` | уязвимости и мисконфигурации | не объясняет размер образа и ошибки сборки |
+
+Что это даёт на практике:
+
+- один запуск вместо нескольких инструментов и ручного сопоставления выводов;
+- `--format json` и код возврата: отчёт кладётся артефактом и может ронять сборку;
+- утилита ничего не меняет в системе, поэтому её безопасно запускать на любом хосте с демоном;
+- локальный Trivy не обязателен: без бинаря сканирование идёт контейнером, а с `--no-trivy`
+  остаются размеры слоёв и замечания по сборке;
+- причина сбоя сканера печатается целиком, вместе с подсказкой и воспроизводимой командой;
+- приватные реестры и локальные образы поддерживаются без пересборки образа.
 
 ## Требования
 
@@ -40,6 +78,11 @@ go build -o bin/cio.exe ./cmd/cio
 make build
 ./bin/cio analyze postgres:15-alpine
 ```
+
+Версия подставляется в бинарь на этапе сборки (`make build` берёт её из `git describe`, CI — из
+коммита, релиз — из тега): `cio --version` печатает версию, коммит и дату сборки. Готовые бинари
+и образ `ghcr.io/devops-spb-ru/cio` публикуются по тегу `cio-vX.Y.Z` — схема версий и чеклист
+релиза описаны в [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Флаги команды `analyze`
 
@@ -67,6 +110,148 @@ cio analyze postgres:15-alpine
 cio analyze --format json --output report.json myapp:1.0
 cio analyze --no-trivy --fail-on high myapp:1.0
 ```
+
+## Интеграция в CI
+
+Утилита рассчитана на запуск в пайплайне: отчёт `--format json` кладётся артефактом, а `--fail-on`
+возвращает код 1 и роняет шаг, если в образе нашлось что-то серьёзнее порога. Каркас одинаков для
+любой системы CI:
+
+1. получить образ в демон Docker (`docker build` или `docker pull`);
+2. собрать `cio` (`go build -trimpath -o bin/cio ./cmd/cio`) или запустить контейнер `cio:local`;
+3. выполнить `cio analyze --format json --output cio-report.json --fail-on high <образ>`
+   и забрать `cio-report.json` артефактом.
+
+| Что настроить | Зачем |
+| --- | --- |
+| `--fail-on high` (или `medium`) | шаг CI падает при находках уровня и выше |
+| `--output cio-report.json` + артефакт | отчёт сохраняется даже упавшего шага (`if: always()` / `when: always`) |
+| `--trivy-cache <том>` | база уязвимостей не скачивается при каждом запуске |
+| `--trivy-timeout 15m` | первый запуск Trivy на медленном реестре не срывается по лимиту |
+| `TRIVY_USERNAME`/`TRIVY_PASSWORD` | доступ к приватному реестру: значения передаются в контейнер по имени и не видны ни в командной строке, ни в отчёте |
+| `--no-trivy` | только разбор слоёв и правил: быстрее и не требует сети |
+
+### GitHub Actions
+
+```yaml
+name: Image analysis
+
+on: [pull_request]
+
+jobs:
+  cio:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: myapp:ci
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: "Container image optimizer/go.mod"
+          cache-dependency-path: "Container image optimizer/go.sum"
+      - name: Собрать образ
+        run: docker build -t "$IMAGE" .
+      - name: Собрать cio
+        working-directory: Container image optimizer
+        run: go build -trimpath -o bin/cio ./cmd/cio
+      - name: Проанализировать образ
+        working-directory: Container image optimizer
+        run: ./bin/cio analyze --format json --output cio-report.json --trivy-docker-socket --fail-on high "$IMAGE"
+      - name: Отчёт в summary
+        if: always()
+        working-directory: Container image optimizer
+        run: ./bin/cio analyze --no-trivy "$IMAGE" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: cio-report
+          path: Container image optimizer/cio-report.json
+          if-no-files-found: warn
+```
+
+- образ, собранный в этом же job, есть только в локальном демоне → `--trivy-docker-socket`
+  (сокет монтируется в контейнер Trivy);
+- для образа из приватного реестра добавьте `--trivy-image-src remote` и `TRIVY_USERNAME`/`TRIVY_PASSWORD`
+  из secrets: креды `docker login` контейнер Trivy не наследует;
+- `--fail-on` роняет шаг, поэтому артефакт и summary загружаются с `if: always()`.
+
+### GitLab CI
+
+```yaml
+stages: [build, scan]
+
+image-analysis:
+  stage: scan
+  image: docker:27
+  services: [docker:27-dind]
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+    IMAGE: myapp:$CI_COMMIT_SHORT_SHA
+    TRIVY_USERNAME: $CI_REGISTRY_USER
+    TRIVY_PASSWORD: $CI_REGISTRY_PASSWORD
+  script:
+    - cd "Container image optimizer"
+    - go build -trimpath -o bin/cio ./cmd/cio
+    # dind: демон удалённый, сокет монтировать нельзя — Trivy читает образ из реестра
+    - ./bin/cio analyze --format json --output cio-report.json --trivy-image-src remote --fail-on high "$IMAGE"
+  artifacts:
+    when: always
+    paths: ["Container image optimizer/cio-report.json"]
+    expire_in: 1 week
+```
+
+- в `dind` демон удалённый, поэтому его сокет в контейнер Trivy не смонтировать: образ сканируется
+  источником `remote` (или job запускается на shell-раннере с локальным демоном);
+- `TRIVY_USERNAME`/`TRIVY_PASSWORD` задавайте как masked и protected variables — в отчёт значения
+  не попадают, в логе команды их тоже нет;
+- база уязвимостей внутри `dind` не переживает job: чтобы не качать её каждый раз, прогрейте кэш
+  на shell-раннере или соберите свой образ Trivy с базой;
+- если образ уже есть в демоне раннера, замените флаг на `--trivy-docker-socket` и передайте
+  обычное имя тега вместо адреса реестра.
+
+### Jenkins
+
+```groovy
+pipeline {
+  agent { label 'docker' }
+  environment {
+    IMAGE = 'registry.example.com/team/myapp:1.0'
+  }
+  stages {
+    stage('Build cio') {
+      steps {
+        sh 'cd "Container image optimizer" && go build -trimpath -o bin/cio ./cmd/cio'
+      }
+    }
+    stage('Analyze image') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'registry-read',
+                                          usernameVariable: 'TRIVY_USERNAME',
+                                          passwordVariable: 'TRIVY_PASSWORD')]) {
+          sh '''cd "Container image optimizer"
+                ./bin/cio analyze --format json --output cio-report.json \
+                  --trivy-image-src remote --fail-on high "$IMAGE"'''
+        }
+      }
+    }
+  }
+  post {
+    always {
+      archiveArtifacts artifacts: 'Container image optimizer/cio-report.json', allowEmptyArchive: true
+    }
+  }
+}
+```
+
+- агент запускается на узле с доступом к Docker (`agent { label 'docker' }`); для образа, собранного
+  на том же узле, используйте `--trivy-docker-socket`;
+- креды реестра передавайте через `withCredentials`: `cio` отдаёт переменные контейнеру Trivy
+  по имени, поэтому пароль не попадёт ни в лог шага, ни в отчёт;
+- `--fail-on` помечает сборку красной, а `post { always { ... } }` сохраняет отчёт артефактом даже
+  у упавшего шага;
+- если в Jenkins используется агент-контейнер без смонтированного `docker.sock`, сканируйте образ
+  из реестра (`--trivy-image-src remote`) — локального демона в контейнере нет.
 
 ## Сканирование приватных и локальных образов
 
@@ -196,6 +381,7 @@ docker pull myapp:1.0
 | `make fmt` | `gofmt -l -w cmd internal` |
 | `make lint` | `golangci-lint run ./...` |
 | `make docker` | собирает локальный Docker-образ `cio:local` |
+| `make version` | собирает и печатает `--version` (проверка подстановки версии через `-ldflags`) |
 
 Без `make` те же команды доступны напрямую через `go build/test/vet`. Проверки из корня репозитория —
 скрипты `.work/build-and-test.ps1`, `.work/smoke-cio.ps1` (дымовой прогон на живом Docker) и
@@ -210,6 +396,17 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock cio:local analyze a
 ```
 
 Контейнеру нужен доступ к `docker.sock` — утилита читает данные об образах через API демона.
+
+Готовый образ публикуется в GitHub Packages при релизе (теги `X.Y.Z` и `latest`):
+
+```bash
+docker run --rm ghcr.io/devops-spb-ru/cio:0.1.0 --version
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/devops-spb-ru/cio:latest analyze alpine:3.20
+```
+
+Версия и ревизия исходников видны и снаружи — в метках `org.opencontainers.image.version` и
+`org.opencontainers.image.revision` (`docker image inspect`), и внутри — в выводе `cio --version`.
+Локальная сборка с версией: `docker build --build-arg VERSION=0.1.0 -t cio:0.1.0 .`.
 
 ## Ограничения
 
