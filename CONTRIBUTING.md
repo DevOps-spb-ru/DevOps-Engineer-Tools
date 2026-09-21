@@ -65,6 +65,56 @@ go build -trimpath -o bin/cio ./cmd/cio
 - PR должен проходить CI: `lint`, `test`, `build`, `docker`.
 - Слияние — только после зелёного CI и ревью.
 
+## Версионирование и релизы
+
+Версии нумеруются по [SemVer](https://semver.org/lang/ru/), схема тегов — `<инструмент>-vX.Y.Z`
+(например, `cio-v0.1.0`). Репозиторий мультипроектный, поэтому общий тег `v0.1.0` пришлось бы
+менять, как только в нём появится вторая утилита. Первая версия `cio` — `0.1.0`: пока флаги CLI
+и формат JSON-отчёта могут меняться, версия остаётся в `0.x`.
+
+Публичный контракт инструмента — флаги CLI, формат JSON-отчёта и коды возврата:
+
+| Изменение | Версия |
+| --- | --- |
+| исправления отчётов, правил, подсказок | patch (`0.1.0` → `0.1.1`) |
+| новый флаг, новое правило анализа, новое поле в JSON | minor (`0.1.0` → `0.2.0`) |
+| удаление или переименование флага, изменение формата JSON | в `0.x` — minor, начиная с `1.0.0` — major |
+
+Версия попадает в бинарь на этапе сборки (`-ldflags "-X main.version=..."`, см. `Makefile`),
+поэтому `cio --version` печатает версию, коммит и дату сборки, а образ получает те же значения
+в метках `org.opencontainers.image.*`.
+
+### Чеклист релиза
+
+1. Убедиться, что CI на `main` зелёный (`lint`, `test`, `build`, `docker`).
+2. В `CHANGELOG.md` переименовать `## [Unreleased]` в `## [X.Y.Z] - ГГГГ-ММ-ДД`, сразу добавить
+   новый пустой `## [Unreleased]` и ссылки сравнения в конце файла.
+3. Влить изменения в `main` и поставить аннотированный тег: `git tag -a cio-vX.Y.Z -m "cio X.Y.Z"`.
+4. Отправить тег: `git push origin cio-vX.Y.Z`.
+5. Workflow `.github/workflows/release.yml` соберёт бинари, создаст GitHub Release
+   (`--generate-notes`) и опубликует образ в GitHub Packages.
+6. Проверить Release (артефакты и `SHA256SUMS`) и пакет: `Packages` → `cio` — видимость
+   (public/private) и наличие тега `ghcr.io/devops-spb-ru/cio:X.Y.Z`.
+
+### Публикация образа (GitHub Packages → Containers)
+
+Имя пакета должно быть в нижнем регистре (`ghcr.io/devops-spb-ru/cio`), связь пакета с репозиторием
+задаётся меткой `org.opencontainers.image.source` в `Dockerfile`.
+
+Локальная публикация (нужен PAT со scope `write:packages` или токен `gh auth token`):
+
+```bash
+echo "$TOKEN" | docker login ghcr.io -u <user> --password-stdin
+docker build --build-arg VERSION=0.1.0 --build-arg REVISION="$(git rev-parse HEAD)" \
+  -t ghcr.io/devops-spb-ru/cio:0.1.0 "Container image optimizer"
+docker push ghcr.io/devops-spb-ru/cio:0.1.0
+```
+
+В CI публикацию делает job `image` релизного workflow через `GITHUB_TOKEN` (permissions
+`packages: write`); тег `latest` обновляется вместе с версией. Если пакет ещё не связан
+с репозиторием, после первого пуша зайдите в `Packages` → `Package settings` и выполните
+`Connect repository`.
+
 ## Как добавить новый инструмент
 
 1. Создайте каталог с понятным именем и `README.md` внутри (структура — как у

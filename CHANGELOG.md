@@ -6,6 +6,20 @@
 
 ### Add
 
+- версия сборки в самом бинаре: `cio --version` печатает версию, коммит и дату (подставляются через
+  `-ldflags` в `Makefile`, CI и релизном workflow), Docker-образ получил OCI-метки
+  `org.opencontainers.image.*`;
+- релизный workflow `.github/workflows/release.yml`: по тегу `cio-vX.Y.Z` собираются бинари для
+  linux/amd64, linux/arm64, darwin/arm64 и windows/amd64, создаётся GitHub Release с `SHA256SUMS`
+  и публикуется образ `ghcr.io/devops-spb-ru/cio`;
+- в README утилиты — разделы «Зачем это нужно», «Преимущества и отличия» и «Интеграция в CI»
+  с примерами для GitHub Actions, GitLab CI и Jenkins;
+- в `CONTRIBUTING.md` — раздел о версионировании, чеклисте релиза и публикации образа.
+
+## [0.1.0] - 2026-09-21
+
+### Add
+
 - `Container image optimizer` (`cio`) — CLI для анализа Docker-образов:
   - топ самых больших слоёв с долей от размера образа;
   - 14 правил анализа истории сборки (крупные слои, кэши пакетных менеджеров, секреты, `curl | sh`,
@@ -44,3 +58,6 @@
 - Слои, для которых BuildKit не отдаёт команду (`<missing>`), проверяются только по размеру.
 - Размер слоя берётся из метаданных Docker, а не из распакованного файлового дерева.
 - Trivy требует доступа к сети для обновления базы уязвимостей; без сети отчёт по слоям всё равно строится.
+
+[Unreleased]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/compare/cio-v0.1.0...HEAD
+[cio-v0.1.0]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/releases/tag/cio-v0.1.0

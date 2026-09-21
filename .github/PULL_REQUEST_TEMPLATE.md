@@ -22,6 +22,7 @@
 - [ ] `golangci-lint run ./...` (или `.work/lint-docker.ps1`)
 - [ ] Проверка на живом Docker (`.work/smoke-cio.ps1`)
 - [ ] Обновлены `README.md` / `CHANGELOG.md`
+- [ ] При релизе: секция `CHANGELOG.md` совпадает с тегом `cio-vX.Y.Z`
 
 ## Влияние и риски
 

@@ -48,6 +48,9 @@ make lint
 ## CI
 
 GitHub Actions (`.github/workflows`): линт, тесты, сборка, сборка образа и его сканирование Trivy.
+Релиз — по тегу `cio-vX.Y.Z` (`.github/workflows/release.yml`): бинари для linux/amd64, linux/arm64,
+darwin/arm64 и windows/amd64, GitHub Release и публикация образа `ghcr.io/devops-spb-ru/cio`.
+Версионирование, чеклист релиза и публикация образа — в [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Лицензия
 
