@@ -1,0 +1,59 @@
+{{define "layout"}}<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} — sqlbrc</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 14px/1.5 system-ui, sans-serif; margin: 0; }
+  header.bar { display: flex; align-items: center; gap: 1rem; padding: .6rem 1rem; background: #1f2937; color: #f9fafb; }
+  header.bar a { color: #f9fafb; text-decoration: none; border-bottom: 1px solid transparent; }
+  header.bar a:hover { border-bottom-color: currentColor; }
+  header.bar .brand { font-weight: 700; }
+  header.bar nav { display: flex; gap: 1rem; margin-right: auto; }
+  header.bar .who { opacity: .8; }
+  main { padding: 1rem; display: grid; gap: 1rem; }
+  footer { padding: 1rem; opacity: .6; font-size: 12px; }
+  .card { border: 1px solid #d1d5db; border-radius: 8px; padding: 1rem; }
+  .card h1 { margin: 0 0 .75rem; font-size: 16px; }
+  form { display: flex; flex-wrap: wrap; gap: .75rem; align-items: flex-end; }
+  form.inline { display: inline-flex; gap: .25rem; align-items: center; }
+  label { display: flex; flex-direction: column; gap: .25rem; font-size: 12px; opacity: .8; }
+  input, button { font: inherit; padding: .35rem .5rem; border-radius: 6px; border: 1px solid #9ca3af; }
+  button { cursor: pointer; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; opacity: .7; }
+  .note { margin: 0 1rem; padding: .5rem .75rem; border-radius: 6px; }
+  .note.ok { background: #ecfdf5; color: #065f46; }
+  .note.warn { background: #fffbeb; color: #92400e; }
+  .note.error { background: #fef2f2; color: #991b1b; }
+  .error { color: #991b1b; }
+  .narrow { max-width: 26rem; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <span class="brand">sqlbrc</span>
+  <nav>
+    <a href="/">Базы и бэкапы</a>
+    <a href="/jobs">Журнал задач</a>
+  </nav>
+  {{if .Login}}
+  <span class="who">{{.Login}}</span>
+  <form class="inline" method="post" action="/logout">
+    <input type="hidden" name="csrf" value="{{.CSRFToken}}">
+    <button type="submit">Выйти</button>
+  </form>
+  {{end}}
+</header>
+{{if .ReadOnly}}<p class="note warn">Сервис в режиме «только просмотр» (server.read_only): операции изменения запрещены.</p>{{end}}
+{{if .Notice}}<p class="note ok">{{.Notice}}</p>{{end}}
+{{if .Error}}<p class="note error">{{.Error}}</p>{{end}}
+<main>
+{{template "content" .}}
+</main>
+<footer>sqlbrc {{.Version}} · страница показывает состояние на момент запроса</footer>
+</body>
+</html>{{end}}

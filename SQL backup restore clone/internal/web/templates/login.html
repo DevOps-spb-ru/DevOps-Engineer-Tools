@@ -1,0 +1,17 @@
+{{define "content"}}
+<section class="card narrow">
+  <h1>Вход</h1>
+  {{if .Error}}<p class="note error">{{.Error}}</p>{{end}}
+  <form method="post" action="/login">
+    <label>Логин
+      <input name="login" autocomplete="username" required autofocus>
+    </label>
+    <label>Пароль
+      <input type="password" name="password" autocomplete="current-password" required>
+    </label>
+    <button type="submit">Войти</button>
+  </form>
+  <p>Пароль проверяется по bcrypt-хэшу из <code>auth.users</code>; после нескольких
+  неудачных попыток вход ненадолго блокируется.</p>
+</section>
+{{end}}

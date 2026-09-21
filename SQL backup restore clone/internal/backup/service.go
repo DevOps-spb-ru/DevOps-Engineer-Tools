@@ -147,6 +147,13 @@ func (s *Service) Backups(database string) ([]store.Backup, error) {
 	return backups, nil
 }
 
+// Databases возвращает базы, у которых есть каталог в хранилище: сервис не
+// перечисляет базы кластера — их список даёт PostgreSQL, а интерфейсу нужны те,
+// с которыми сервис уже работал.
+func (s *Service) Databases() ([]string, error) {
+	return s.store.ListDatabases()
+}
+
 // RejectedError — операция отвергнута до её начала: сервис не изменил ни базу,
 // ни каталог бэкапов. CLI возвращает по такой ошибке код 2, чтобы скрипты
 // отличали «отказано по правилам» от «операция не удалась».

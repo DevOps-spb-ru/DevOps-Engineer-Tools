@@ -109,6 +109,8 @@ func newRootCommand(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
   * backups — список бэкапов и уборка по политике хранения (keep_last, keep_days);
   * jobs — журнал задач: что делали, когда и чем закончилось;
   * hash-password — bcrypt-хэш пароля для auth.users;
+  * serve — веб-интерфейс и API для тех же операций (вход по auth.users,
+    API — по токену из auth.token_file);
   * doctor — проверка готовности сервера: конфиг, утилиты PostgreSQL, правило
     sudoers, каталоги, свободное место и свежесть бэкапов.
 
@@ -140,6 +142,7 @@ func newRootCommand(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 		newBackupsCommand(app),
 		newJobsCommand(app),
 		newHashPasswordCommand(app),
+		newServeCommand(app),
 	)
 	return root
 }

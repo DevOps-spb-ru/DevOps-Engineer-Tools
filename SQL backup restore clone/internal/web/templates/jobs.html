@@ -1,0 +1,32 @@
+{{define "content"}}
+<section class="card">
+  <h1>Журнал задач</h1>
+  <form method="get" action="/jobs">
+    <label>Последних задач
+      <input type="number" name="limit" value="{{.Limit}}" min="1" max="500">
+    </label>
+    <button type="submit">Обновить</button>
+  </form>
+  <table>
+    <tr>
+      <th>Задача</th><th>Вид</th><th>База</th><th>Состояние</th><th>Начало</th><th>Длительность</th><th>Итог</th><th>Кто</th>
+    </tr>
+    {{range .Jobs}}
+    <tr>
+      <td>{{.ID}}</td>
+      <td>{{jobKind .Kind}}</td>
+      <td>{{.Database}}{{if .Target}} → {{.Target}}{{end}}</td>
+      <td>{{jobStatus .Status}}</td>
+      <td>{{time .StartedAt}}</td>
+      <td>{{.DurationMS}} мс</td>
+      <td>{{if .Error}}<span class="error">{{.Error}}</span>{{else}}{{.Message}}{{end}}</td>
+      <td>{{if .Operator}}{{.Operator}}{{else}}—{{end}}</td>
+    </tr>
+    {{else}}
+    <tr><td colspan="8">Журнал пуст.</td></tr>
+    {{end}}
+  </table>
+  <p>Запись появляется при запуске задачи и обновляется по завершении, поэтому
+  выполняющаяся задача видна как «выполняется».</p>
+</section>
+{{end}}
