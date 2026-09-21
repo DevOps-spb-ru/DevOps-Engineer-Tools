@@ -14,7 +14,6 @@ import (
 const (
 	separator      = "--------------------------------------------------------------------------------"
 	maxCommandSize = 96
-	maxErrorSize   = 220
 )
 
 // Table печатает человекочитаемый отчёт.
@@ -112,12 +111,4 @@ func truncateMessage(value string, limit int) string {
 		return compact
 	}
 	return string(runes[:limit-1]) + "…"
-}
-
-// firstLine возвращает первую строку многострочного сообщения.
-func firstLine(value string) string {
-	if index := strings.IndexAny(value, "\r\n"); index >= 0 {
-		return value[:index]
-	}
-	return value
 }

@@ -104,6 +104,49 @@ func TestTableWithScanError(t *testing.T) {
 	}
 }
 
+func TestTableWithScanFailureShowsCause(t *testing.T) {
+	report := sampleReport()
+	report.Scan = &analyze.ScanSummary{
+		Source: "docker:aquasec/trivy:latest",
+		Error: "trivy (docker:aquasec/trivy:latest): 2026-09-21T10:00:00Z\tFATAL\tFatal error\t" +
+			"run error: image scan error: unable to initialize artifact: unable to initialize container image: " +
+			"unable to find the specified image \"app:5.4.1\" in [\"docker\" \"containerd\" \"podman\" \"remote\"]: " +
+			"4 errors occurred:\n" +
+			"  - unable to initialize artifact:\n" +
+			"    github.com/aquasecurity/trivy/pkg/commands/artifact.createLocalService\n" +
+			"        /home/runner/work/trivy/trivy/pkg/commands/artifact/scanner.go:261\n" +
+			"\t* remote error: GET https://docker-hub.iitdgroup.ru/v2/app/manifests/5.4.1: UNAUTHORIZED",
+		Command: "docker run --rm aquasec/trivy:latest image --format json app:5.4.1",
+	}
+
+	output := tableOutput(t, report)
+	for _, want := range []string{
+		"недоступно: trivy (docker:aquasec/trivy:latest)",
+		"UNAUTHORIZED",
+		"подсказка:",
+		"TRIVY_USERNAME и TRIVY_PASSWORD",
+		"команда:    docker run --rm aquasec/trivy:latest image --format json app:5.4.1",
+	} {
+		if !strings.Contains(output, want) {
+			t.Errorf("в отчёте нет фрагмента %q\n%s", want, output)
+		}
+	}
+	for _, noise := range []string{"scanner.go:", "createLocalService"} {
+		if strings.Contains(output, noise) {
+			t.Errorf("в отчёт попала трассировка стека %q:\n%s", noise, output)
+		}
+	}
+}
+
+func tableOutput(t *testing.T, report *analyze.Report) string {
+	t.Helper()
+	buf := &bytes.Buffer{}
+	if err := Table(buf, report); err != nil {
+		t.Fatalf("Table: неожиданная ошибка: %v", err)
+	}
+	return buf.String()
+}
+
 func TestJSONRoundTrip(t *testing.T) {
 	report := sampleReport()
 	buf := &bytes.Buffer{}
