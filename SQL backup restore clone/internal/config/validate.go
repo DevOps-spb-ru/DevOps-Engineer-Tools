@@ -163,27 +163,68 @@ func validateBcrypt(hash string) error {
 	return nil
 }
 
-// validatePostgres проверяет режим запуска утилит PostgreSQL. В 0.1.0 поддержан
-// только sudo: подключение идёт через локальный сокет с peer-аутентификацией,
-// пароли в конфиге не хранятся.
+// validatePostgres проверяет режим запуска утилит PostgreSQL. Режимов два: sudo —
+// локальный сокет и peer-аутентификация (пароли не нужны), tcp — подключение по
+// сети от имени роли с паролем из файла (так работает поставка в контейнере).
 func (c Configuration) validatePostgres(found *problems) {
 	mode := c.Postgres.Mode
 	if mode == "" {
 		mode = pg.ModeSudo
 	}
-	if mode != pg.ModeSudo {
+	switch mode {
+	case pg.ModeSudo:
+	case pg.ModeTCP:
+		c.validateTCP(found)
+	default:
 		found.add(
-			"postgres.mode = %q: в 0.1.0 поддерживается только %q (sudo -n -u %s через локальный сокет); режим tcp для контейнера появится в 0.2.0",
-			mode, pg.ModeSudo, c.Postgres.SudoUser)
+			"postgres.mode = %q: поддерживаются %q (sudo -n -u %s через локальный сокет) и %q (подключение по сети с паролем роли)",
+			mode, pg.ModeSudo, c.Postgres.SudoUser, pg.ModeTCP)
 		return
 	}
-	if role := strings.TrimSpace(c.Postgres.Role); role != "" && role != c.Postgres.SudoUser {
-		found.add(
-			"postgres.role = %q: в режиме sudo подключение идёт от %q, поэтому роль из конфига не применяется; владелец объектов берётся из дампа (databases.owner)",
-			role, c.Postgres.SudoUser)
+	if mode == pg.ModeSudo {
+		if role := strings.TrimSpace(c.Postgres.Role); role != "" && role != c.Postgres.SudoUser {
+			found.add(
+				"postgres.role = %q: в режиме sudo подключение идёт от %q, поэтому роль из конфига не применяется; владелец объектов берётся из дампа (databases.owner)",
+				role, c.Postgres.SudoUser)
+		}
 	}
 	if err := c.Postgres.ClientConfig().Validate(); err != nil {
 		found.add("postgres: %v", err)
+	}
+}
+
+// validateTCP проверяет сетевой режим: без адреса, порта, роли и файла пароля
+// сервис не сможет подключиться, а ошибка выяснилась бы при первой операции.
+// Существование и права файла пароля проверяет `doctor`: конфиг может читаться
+// и на машине разработки, где этого файла нет.
+func (c Configuration) validateTCP(found *problems) {
+	if host := strings.TrimSpace(c.Postgres.Host); host == "" {
+		found.add("postgres.host: не задан адрес сервера (пример: 127.0.0.1 или имя службы)")
+	}
+	port := strings.TrimSpace(c.Postgres.Port)
+	switch {
+	case port == "":
+		found.add("postgres.port: не задан порт сервера (пример: 5432)")
+	default:
+		if number, err := strconv.Atoi(port); err != nil || number < 1 || number > 65535 {
+			found.add("postgres.port: некорректный порт %q", port)
+		}
+	}
+	role := strings.TrimSpace(c.Postgres.Role)
+	switch {
+	case role == "":
+		found.add("postgres.role: не задана роль: в режиме tcp сервис подключается по сети от имени роли")
+	default:
+		if err := pg.ValidateIdentifier(role, "postgres.role"); err != nil {
+			found.add("%v", err)
+		}
+	}
+	path := strings.TrimSpace(c.Postgres.PasswordFile)
+	switch {
+	case path == "":
+		found.add("postgres.password_file: не задан файл пароля: в режиме tcp пароль передаётся файлом (PGPASSFILE), а не аргументами команды")
+	case !isAbsoluteUnixPath(path):
+		found.add("postgres.password_file: %q должен быть абсолютным путём (пример: /etc/sqlbrc/pgpass)", path)
 	}
 }
 

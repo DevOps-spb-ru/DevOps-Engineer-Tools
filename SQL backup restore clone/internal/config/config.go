@@ -101,8 +101,9 @@ type User struct {
 
 // PostgresConfig — доступ к PostgreSQL.
 type PostgresConfig struct {
-	// Mode — способ запуска утилит: sudo (основной режим) или tcp (появится
-	// вместе с поставкой в контейнере в 0.3.0).
+	// Mode — способ запуска утилит: sudo (локальный сокет, peer-аутентификация)
+	// или tcp (подключение по сети с паролем роли из файла — так работает
+	// поставка в контейнере).
 	Mode string `yaml:"mode"`
 	// SudoPath, SudoUser — путь к sudo и пользователь-владелец кластера.
 	SudoPath string `yaml:"sudo_path"`

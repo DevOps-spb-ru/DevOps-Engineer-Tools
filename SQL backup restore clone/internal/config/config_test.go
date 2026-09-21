@@ -249,9 +249,49 @@ func TestValidateServerAndAuth(t *testing.T) {
 func TestValidatePostgresAndStorage(t *testing.T) {
 	runValidateCases(t, []validateCase{
 		{
-			name:     "режим tcp ещё не поддержан",
+			name:     "режим tcp без адреса, порта, роли и файла пароля",
 			change:   func(c *Configuration) { c.Postgres.Mode = pg.ModeTCP },
-			wantHint: "0.2.0",
+			wantHint: "postgres.host",
+			wantErr:  true,
+		},
+		{
+			name: "режим tcp: некорректный порт",
+			change: func(c *Configuration) {
+				c.Postgres.Mode = pg.ModeTCP
+				c.Postgres.Host = "127.0.0.1"
+				c.Postgres.Port = "5432x"
+				c.Postgres.Role = "sqlbrc"
+				c.Postgres.PasswordFile = "/etc/sqlbrc/pgpass"
+			},
+			wantHint: "postgres.port",
+			wantErr:  true,
+		},
+		{
+			name: "режим tcp: относительный путь к файлу пароля",
+			change: func(c *Configuration) {
+				c.Postgres.Mode = pg.ModeTCP
+				c.Postgres.Host = "127.0.0.1"
+				c.Postgres.Port = "5432"
+				c.Postgres.Role = "sqlbrc"
+				c.Postgres.PasswordFile = "pgpass"
+			},
+			wantHint: "postgres.password_file",
+			wantErr:  true,
+		},
+		{
+			name: "режим tcp настроен",
+			change: func(c *Configuration) {
+				c.Postgres.Mode = pg.ModeTCP
+				c.Postgres.Host = "postgres"
+				c.Postgres.Port = "5432"
+				c.Postgres.Role = "sqlbrc"
+				c.Postgres.PasswordFile = "/etc/sqlbrc/pgpass"
+			},
+		},
+		{
+			name:     "неизвестный режим запуска утилит",
+			change:   func(c *Configuration) { c.Postgres.Mode = "socket" },
+			wantHint: "postgres.mode",
 			wantErr:  true,
 		},
 		{

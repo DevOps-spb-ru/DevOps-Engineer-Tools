@@ -68,6 +68,35 @@ func sudoHint(cfg config.PostgresConfig) string {
 		DefaultServiceUser, cfg.SudoUser, strings.Join(binaries, ", "))
 }
 
+// checkPasswordFile проверяет файл пароля режима tcp (PGPASSFILE): утилиты читают
+// его при каждом запуске, а права шире 0600 означали бы, что пароль роли видит
+// любой пользователь сервера. В режиме sudo проверять нечего: пароль не нужен.
+func checkPasswordFile(report *Report, opts Options) {
+	cfg := opts.Cfg.Postgres
+	if cfg.Mode != pg.ModeTCP {
+		return
+	}
+	path := strings.TrimSpace(cfg.PasswordFile)
+	if path == "" {
+		report.add("pgpass", LevelError,
+			"postgres.password_file не задан: в режиме tcp пароль роли передаётся файлом",
+			"создайте файл формата «host:port:база:роль:пароль» (install -m 0600) и укажите путь в postgres.password_file")
+		return
+	}
+	info, err := opts.FS.Stat(path)
+	if err != nil {
+		report.add("pgpass", LevelError, fmt.Sprintf("%s не читается: %v", path, err),
+			fmt.Sprintf("проверьте путь и права: install -m 0600 -o %s -g %s <файл> %s", DefaultServiceUser, DefaultServiceUser, path))
+		return
+	}
+	if perm := info.Mode().Perm(); perm&0o077 != 0 {
+		report.add("pgpass", LevelError, fmt.Sprintf("%s: режим %04o", path, perm),
+			fmt.Sprintf("доступ к паролю роли должен быть только у сервиса: chmod 0600 %s", path))
+		return
+	}
+	report.add("pgpass", LevelOK, fmt.Sprintf("%s: режим %04o", path, info.Mode().Perm()), "")
+}
+
 // serverInfo — что удалось узнать о сервере: нужно для сравнения версий клиентов.
 type serverInfo struct {
 	version pg.Version

@@ -130,6 +130,7 @@ func Run(ctx context.Context, opts Options) Report {
 		opts.Cfg.Postgres.Mode, opts.Cfg.Storage.Dir), "")
 
 	checkSudo(ctx, &report, opts)
+	checkPasswordFile(&report, opts)
 	server := checkServer(ctx, &report, opts)
 	checkClients(ctx, &report, opts, server)
 	checkRole(ctx, &report, opts)
