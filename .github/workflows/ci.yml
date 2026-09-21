@@ -56,9 +56,12 @@ jobs:
       - name: govulncheck
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Версия инструмента зафиксирована: обновление — отдельное изменение,
-          # иначе сборка может упасть из-за нового набора правил.
-          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+          # Версия зафиксирована: обновление — отдельное изменение, иначе сканер может
+          # начать падать на новом наборе правил. Верхняя граница — версия Go в go.mod:
+          # setup-go выставляет GOTOOLCHAIN=local, а golang.org/x/vuln@v1.8.0 требует
+          # go >= 1.26.0 (в go.mod объявлена 1.25.4), поэтому ставится v1.7.0 —
+          # её модуль требует go 1.25.0. Повышать версию — вместе с go в go.mod.
+          go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
           govulncheck ./...
 
   test:

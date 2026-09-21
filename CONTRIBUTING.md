@@ -41,8 +41,9 @@ go build -trimpath -o bin/cio ./cmd/cio
 Линт: `make lint` (нужен `golangci-lint`) или `.work/lint-docker.ps1` — тот же линтер в контейнере
 `golangci/golangci-lint` с версией, которая используется в CI.
 
-Проверка зависимостей: `go install golang.org/x/vuln/cmd/govulncheck@latest`, затем `govulncheck ./...`
-(достижимые уязвимости роняют CI).
+Проверка зависимостей: `go install golang.org/x/vuln/cmd/govulncheck@v1.7.0`, затем `govulncheck ./...`
+(достижимые уязвимости роняют CI). Версию держим той же, что в `.github/workflows/ci.yml`: `v1.8.0`
+требует Go ≥ 1.26, а в `go.mod` объявлена 1.25.4.
 
 Дымовая проверка на живом Docker: `.work/smoke-cio.ps1` (добавьте `-WithTrivy`, чтобы проверить сканирование).
 
