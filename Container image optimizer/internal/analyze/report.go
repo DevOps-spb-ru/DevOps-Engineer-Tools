@@ -64,6 +64,7 @@ type Vulnerability struct {
 // ScanSummary — нормализованная сводка внешнего сканера (Trivy).
 type ScanSummary struct {
 	Source               string          `json:"source"`
+	Command              string          `json:"command,omitempty"`
 	BySeverity           map[string]int  `json:"bySeverity,omitempty"`
 	TotalVulnerabilities int             `json:"totalVulnerabilities"`
 	Misconfigurations    int             `json:"misconfigurations"`
