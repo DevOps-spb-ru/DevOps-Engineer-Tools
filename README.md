@@ -10,7 +10,8 @@
 | [Container image optimizer](Container%20image%20optimizer/README.md) (`cio`) | Анализирует Docker-образы: размер слоёв, устаревшие пакеты и уязвимости (Trivy), рекомендации по уменьшению размера и multi-stage сборке | Go + Docker Engine API + Trivy | 0.2.0 |
 | [SQL backup, restore and clone](SQL%20backup%20restore%20clone/README.md) (`sqlbrc`) | Бэкап, восстановление и клонирование баз PostgreSQL: каталог бэкапов с политикой хранения и проверка готовности сервера (`doctor`). Операции, очередь задач, веб-интерфейс и API — 0.2.0 | Go + утилиты PostgreSQL 15 | 0.1.0 |
 
-История изменений — в [CHANGELOG.md](CHANGELOG.md).
+История изменений — в `CHANGELOG.md` каждого инструмента: [cio](Container%20image%20optimizer/CHANGELOG.md),
+[sqlbrc](SQL%20backup%20restore%20clone/CHANGELOG.md). Формат — Keep a Changelog, нумерация — SemVer.
 
 ## Требования
 

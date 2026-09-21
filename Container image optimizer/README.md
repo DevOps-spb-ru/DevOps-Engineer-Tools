@@ -82,7 +82,8 @@ make build
 Версия подставляется в бинарь на этапе сборки (`make build` берёт её из `git describe`, CI — из
 коммита, релиз — из тега): `cio --version` печатает версию, коммит и дату сборки. Готовые бинари
 и образ `ghcr.io/devops-spb-ru/cio` публикуются по тегу `cio-vX.Y.Z` — схема версий и чеклист
-релиза описаны в [CONTRIBUTING.md](../CONTRIBUTING.md).
+релиза описаны в [CONTRIBUTING.md](../CONTRIBUTING.md), история изменений версий — в
+[CHANGELOG.md](CHANGELOG.md).
 
 ## Флаги команды `analyze`
 
