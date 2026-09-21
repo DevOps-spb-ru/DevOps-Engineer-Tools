@@ -10,7 +10,11 @@
 # Версия попадает в бинарь и в OCI-метки образа:
 #   docker build --build-arg VERSION=0.1.0 --build-arg REVISION=$(git rev-parse HEAD) -t cio:0.1.0 .
 
-ARG GO_IMAGE=golang:1.25-alpine
+# Патч Go фиксируется вместе с go.mod: внутри образа выключен автоподбор тулчейна
+# (GOTOOLCHAIN=local), поэтому образ обязан содержать тулчейн не старше объявленного
+# в go.mod, иначе сборка падает. Тулчейн же определяет уязвимости stdlib, которые
+# видит govulncheck, — устаревший патч оставит гейт красным.
+ARG GO_IMAGE=golang:1.25.14-alpine
 # Тег Trivy фиксируется: с :latest состав образа не воспроизводится, а уязвимости
 # встроенного сканера попадают в релизный образ. Обновления приносит Dependabot.
 ARG TRIVY_IMAGE=aquasec/trivy:0.74.0
