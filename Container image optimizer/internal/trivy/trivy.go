@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -26,8 +27,13 @@ const DefaultTimeout = 5 * time.Minute
 // ErrNotFound возвращается, когда недоступны ни бинарь trivy, ни docker.
 var ErrNotFound = errors.New("trivy не найден: нет бинаря в PATH и недоступен docker-fallback")
 
-// scannerArgs — общие аргументы запуска сканера.
-var scannerArgs = []string{"image", "--format", "json", "--quiet", "--scanners", "vuln,misconfig"}
+// baseArgs — общие аргументы запуска сканера: формат отчёта и набор сканеров.
+var baseArgs = []string{"image", "--format", "json", "--quiet", "--scanners", "vuln,misconfig"}
+
+// DefaultEnvNames — переменные окружения Trivy, которые пробрасываются в контейнер
+// по имени. Значения не попадают в командную строку, поэтому креды реестра
+// (TRIVY_USERNAME/TRIVY_PASSWORD) не видны в списке процессов.
+var DefaultEnvNames = []string{"TRIVY_USERNAME", "TRIVY_PASSWORD", "TRIVY_INSECURE"}
 
 // CommandRunner выполняет внешнюю команду и возвращает её stdout.
 // Интерфейс позволяет проверять выбор способа запуска без установленных trivy и docker.
@@ -47,6 +53,22 @@ type Options struct {
 	DockerBin string
 	// Timeout — предел времени на один запуск.
 	Timeout time.Duration
+	// ImageSource — значение флага --image-src (например "docker" или "remote").
+	// Пустое значение оставляет порядок источников, заданный в Trivy.
+	ImageSource string
+	// DockerSocket — путь к сокету демона на хосте; непустое значение монтирует
+	// сокет в контейнер, чтобы Trivy видел образы локального демона.
+	DockerSocket string
+	// CacheVolume — том с базой уязвимостей, чтобы не качать её при каждом запуске.
+	// Пустое значение подставляет DefaultCacheVolume, DisableCacheVolume отключает кэш.
+	CacheVolume string
+	// ExtraArgs — дополнительные аргументы сканера (флаг --trivy-arg).
+	ExtraArgs []string
+	// EnvNames — имена переменных окружения, пробрасываемых в контейнер по имени.
+	// Пустое значение подставляет DefaultEnvNames.
+	EnvNames []string
+	// LookupEnv подменяет os.LookupEnv в тестах.
+	LookupEnv func(string) (string, bool)
 	// LookPath подменяет exec.LookPath в тестах.
 	LookPath func(string) (string, error)
 	// Runner подменяет запуск внешних команд в тестах.
@@ -70,6 +92,15 @@ func NewCLI(opts Options) *CLI {
 	if opts.Timeout <= 0 {
 		opts.Timeout = DefaultTimeout
 	}
+	if opts.CacheVolume == "" {
+		opts.CacheVolume = DefaultCacheVolume
+	}
+	if opts.EnvNames == nil {
+		opts.EnvNames = DefaultEnvNames
+	}
+	if opts.LookupEnv == nil {
+		opts.LookupEnv = os.LookupEnv
+	}
 	if opts.LookPath == nil {
 		opts.LookPath = exec.LookPath
 	}
@@ -84,7 +115,7 @@ func NewCLI(opts Options) *CLI {
 // Scan сканирует образ и возвращает нормализованную сводку.
 func (c *CLI) Scan(ctx context.Context, imageRef string) (*analyze.ScanSummary, error) {
 	if bin := c.resolveBinary(); bin != "" {
-		return c.scanWith(ctx, bin, scannerArgs, imageRef, "trivy")
+		return c.scanWith(ctx, bin, c.scanArgs(), imageRef, "trivy")
 	}
 	if !c.opts.UseDocker {
 		return nil, ErrNotFound
@@ -93,8 +124,17 @@ func (c *CLI) Scan(ctx context.Context, imageRef string) (*analyze.ScanSummary, 
 		return nil, ErrNotFound
 	}
 	source := "docker:" + c.opts.FallbackImage
-	args := append([]string{"run", "--rm", c.opts.FallbackImage}, scannerArgs...)
-	return c.scanWith(ctx, c.opts.DockerBin, args, imageRef, source)
+	return c.scanWith(ctx, c.opts.DockerBin, dockerRunArgs(c.opts, c.scanArgs()), imageRef, source)
+}
+
+// scanArgs собирает аргументы сканера: базовые флаги, источник образов и
+// дополнительные аргументы пользователя.
+func (c *CLI) scanArgs() []string {
+	args := append([]string{}, baseArgs...)
+	if c.opts.ImageSource != "" {
+		args = append(args, "--image-src", c.opts.ImageSource)
+	}
+	return append(args, c.opts.ExtraArgs...)
 }
 
 // resolveBinary возвращает путь к бинарю trivy или пустую строку, если его нет.
@@ -109,19 +149,43 @@ func (c *CLI) resolveBinary() string {
 	return path
 }
 
+// ScanError — сбой сканера вместе с контекстом: способ запуска и команда,
+// которую пользователь может воспроизвести вручную.
+type ScanError struct {
+	// Source — способ запуска: "trivy" для бинаря или "docker:<образ>".
+	Source string
+	// Command — полная команда запуска сканера.
+	Command string
+	// Err — исходная причина сбоя.
+	Err error
+}
+
+// Error возвращает причину сбоя в прежнем виде: способ запуска и текст ошибки.
+func (e *ScanError) Error() string {
+	return fmt.Sprintf("trivy (%s): %v", e.Source, e.Err)
+}
+
+// Unwrap даёт доступ к исходной ошибке для errors.Is/errors.As.
+func (e *ScanError) Unwrap() error {
+	return e.Err
+}
+
 func (c *CLI) scanWith(
 	ctx context.Context, bin string, args []string, imageRef, source string,
 ) (*analyze.ScanSummary, error) {
 	fullArgs := append(append([]string{}, args...), imageRef)
+	command := strings.Join(append([]string{bin}, fullArgs...), " ")
+
 	stdout, runErr := c.runner.Run(ctx, bin, fullArgs...)
 	if runErr != nil {
-		return nil, fmt.Errorf("trivy (%s): %w", source, runErr)
+		return nil, &ScanError{Source: source, Command: command, Err: runErr}
 	}
 	summary, err := Parse(stdout)
 	if err != nil {
-		return nil, fmt.Errorf("trivy (%s): %w", source, err)
+		return nil, &ScanError{Source: source, Command: command, Err: err}
 	}
 	summary.Source = source
+	summary.Command = command
 	return summary, nil
 }
 
