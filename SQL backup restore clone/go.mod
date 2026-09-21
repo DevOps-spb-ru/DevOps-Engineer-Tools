@@ -1,10 +1,10 @@
 module github.com/DevOps-spb-ru/DevOps-Engineer-Tools/sql-backup-restore-clone
 
-go 1.25.14
+go 1.26.0
 
 require (
 	github.com/spf13/cobra v1.10.2
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.57.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
