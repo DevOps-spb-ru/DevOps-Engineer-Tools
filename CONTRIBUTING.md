@@ -5,6 +5,7 @@
 | Путь | Что там |
 | --- | --- |
 | `Container image optimizer/` | утилита `cio` на Go: CLI, правила анализа, Docker-сборка |
+| `SQL backup restore clone/` | сервис `sqlbrc` на Go: бэкап, восстановление и клонирование баз PostgreSQL |
 | `.github/workflows/` | CI: линт, тесты, сборка, сборка образа, сканирование Trivy |
 | `.work/` | локальные вспомогательные скрипты (в Git не попадают) |
 | `.clinerules/` | локальные правила и справка для AI-ассистента (в Git не попадают) |
@@ -13,8 +14,9 @@
 
 | Компонент | Версия | Зачем |
 | --- | --- | --- |
-| Go | 1.25+ | сборка и тесты |
-| Docker Engine | 24+ | утилите нужен демон: образы читаются через Docker API |
+| Go | 1.25.14+ | сборка и тесты обоих инструментов (патч зафиксирован в `go.mod`) |
+| Docker Engine | 24+ | `cio`: образы и история слоёв читаются через Docker API |
+| PostgreSQL | 15 | `sqlbrc`: утилиты `pg_dump`, `pg_restore`, `psql`, `pg_isready` |
 | Python 3 | 3.8+ | только для валидации workflows (`.work/validate-workflows.py`) |
 | `make` | опционально | в Windows-средах часто нет — используйте `go` напрямую |
 
@@ -26,14 +28,15 @@
 powershell -ExecutionPolicy Bypass -File .work/build-and-test.ps1
 ```
 
-По шагам:
+По шагам (в каталоге нужного инструмента: `cd "Container image optimizer"` или
+`cd "SQL backup restore clone"`):
 
 ```bash
-cd "Container image optimizer"
 gofmt -l cmd internal   # должно быть пусто
 go vet ./...
 go test ./... -count=1
-go build -trimpath -o bin/cio ./cmd/cio
+go build -trimpath -o bin/cio ./cmd/cio             # для cio
+go build -trimpath -o bin/sqlbrc.exe ./cmd/sqlbrc   # для sqlbrc (.exe — только в Windows)
 ```
 
 Если `make` установлен, те же проверки доступны как `make vet test fmt-check build`.
@@ -43,9 +46,13 @@ go build -trimpath -o bin/cio ./cmd/cio
 
 Проверка зависимостей: `go install golang.org/x/vuln/cmd/govulncheck@v1.7.0`, затем `govulncheck ./...`
 (достижимые уязвимости роняют CI). Версию держим той же, что в `.github/workflows/ci.yml`: `v1.8.0`
-требует Go ≥ 1.26, а в `go.mod` объявлена 1.25.4.
+требует Go ≥ 1.26, а в `go.mod` обоих инструментов объявлена 1.25.14.
 
 Дымовая проверка на живом Docker: `.work/smoke-cio.ps1` (добавьте `-WithTrivy`, чтобы проверить сканирование).
+
+Проверка `sqlbrc` без живого PostgreSQL: `bin/sqlbrc doctor --config deploy/config.example.yaml` —
+отчёт по проверкам готовности сервера; код возврата 1 означает «есть ошибки», в том числе
+«на этой ОС проверить не удалось» (например, на Windows).
 
 ## Definition of Done
 
@@ -56,7 +63,7 @@ go build -trimpath -o bin/cio ./cmd/cio
    данных (отчёты сканера, значения флагов) добавляется fuzz-цель (`Fuzz*`).
 4. `govulncheck ./...` не находит достижимых уязвимостей (тот же шаг есть в CI).
 5. Поведение и флаги описаны в `README.md` соответствующего инструмента.
-6. Изменения пользовательского поведения отражены в `CHANGELOG.md`.
+6. Изменения пользовательского поведения отражены в `CHANGELOG.md` затронутого инструмента.
 
 ## Коммиты
 
@@ -69,15 +76,22 @@ go build -trimpath -o bin/cio ./cmd/cio
 
 - Ветка от `main`: `feature/<краткое-имя>` или `fix/<краткое-имя>`.
 - PR заполняется по шаблону `.github/PULL_REQUEST_TEMPLATE.md`; в описании — что проверено и как.
-- PR должен проходить CI: `lint`, `test`, `build`, `docker`.
+- PR должен проходить CI: `Линт`, `Уязвимости зависимостей`, `Тесты` и `Сборка` (для обоих
+  инструментов), а для `cio` — ещё и `Docker-образ`.
 - Слияние — только после зелёного CI и ревью.
 
 ## Версионирование и релизы
 
 Версии нумеруются по [SemVer](https://semver.org/lang/ru/), схема тегов — `<инструмент>-vX.Y.Z`
-(например, `cio-v0.1.0`). Репозиторий мультипроектный, поэтому общий тег `v0.1.0` пришлось бы
-менять, как только в нём появится вторая утилита. Первая версия `cio` — `0.1.0`: пока флаги CLI
+(например, `cio-v0.1.0`, `sqlbrc-v0.1.0`). Репозиторий мультипроектный, поэтому общий тег `v0.1.0`
+пришлось бы менять, как только в нём появится вторая утилита. Первая версия `cio` — `0.1.0`: пока флаги CLI
 и формат JSON-отчёта могут меняться, версия остаётся в `0.x`.
+
+Версии у инструментов независимые, поэтому у каждого инструмента свой `CHANGELOG.md` в его каталоге
+(`Container image optimizer/CHANGELOG.md`, `SQL backup restore clone/CHANGELOG.md`), а раздел называется
+просто по версии (`## [0.2.0]`): файл и так принадлежит одному инструменту. Ссылки сравнения в конце
+файла ведут на теги того же инструмента (`cio-vX.Y.Z`), а в корневом `CHANGELOG.md` остаётся только
+указатель на эти файлы.
 
 Публичный контракт инструмента — флаги CLI, формат JSON-отчёта и коды возврата:
 
@@ -88,16 +102,21 @@ go build -trimpath -o bin/cio ./cmd/cio
 | удаление или переименование флага, изменение формата JSON | в `0.x` — minor, начиная с `1.0.0` — major |
 
 Версия попадает в бинарь на этапе сборки (`-ldflags "-X main.version=..."`, см. `Makefile`),
-поэтому `cio --version` печатает версию, коммит и дату сборки, а образ получает те же значения
+поэтому `--version` печатает версию, коммит и дату сборки (у `sqlbrc` — тем же способом, цель
+`version` в его `Makefile`), а образ `cio` получает те же значения
 в метках `org.opencontainers.image.*`.
 
 ### Чеклист релиза
 
-1. Убедиться, что CI на `main` зелёный (`lint`, `test`, `build`, `docker`).
-2. В `CHANGELOG.md` переименовать `## [Unreleased]` в `## [X.Y.Z] - ГГГГ-ММ-ДД`, сразу добавить
-   новый пустой `## [Unreleased]` и ссылки сравнения в конце файла.
-3. Влить изменения в `main` и поставить аннотированный тег: `git tag -a cio-vX.Y.Z -m "cio X.Y.Z"`.
-4. Отправить тег: `git push origin cio-vX.Y.Z`.
+1. Убедиться, что CI на `main` зелёный: `Линт`, `Уязвимости зависимостей`, `Тесты` и `Сборка`
+   для нужного инструмента (для `cio` — ещё и `Docker-образ`).
+2. В `CHANGELOG.md` инструмента (`Container image optimizer/CHANGELOG.md` или
+   `SQL backup restore clone/CHANGELOG.md`) переименовать `## [Unreleased]` в `## [X.Y.Z] - ГГГГ-ММ-ДД`
+   (например, `## [0.1.0] - 2026-10-01`), сразу добавить новый пустой `## [Unreleased]`
+   и ссылки сравнения в конце файла — на теги того же инструмента.
+3. Влить изменения в `main` и поставить аннотированный тег:
+   `git tag -a <инструмент>-vX.Y.Z -m "<инструмент> X.Y.Z"`.
+4. Отправить тег: `git push origin <инструмент>-vX.Y.Z`.
 5. Workflow `.github/workflows/release.yml` соберёт бинари, создаст GitHub Release
    (`--generate-notes`), приложит SBOM и attestation сборки и опубликует образ в GitHub Packages
    (SBOM, provenance, подпись cosign). Тег `latest` обновляют только стабильные версии:
@@ -115,6 +134,9 @@ go build -trimpath -o bin/cio ./cmd/cio
 
 8. Убедиться, что образ запускается от непривилегированного пользователя:
    `docker image inspect ghcr.io/devops-spb-ru/cio:X.Y.Z --format '{{.Config.User}}'` → `cio`.
+
+Релизный workflow настроен пока только для `cio`: для `sqlbrc` он появится вместе с операциями
+бэкапа и восстановления (0.2.0), до тех пор к нему шаги 5–8 не применяются.
 
 ### Публикация образа (GitHub Packages → Containers)
 
@@ -135,13 +157,19 @@ docker push ghcr.io/devops-spb-ru/cio:0.1.0
 с репозиторием, после первого пуша зайдите в `Packages` → `Package settings` и выполните
 `Connect repository`.
 
+Образ пока публикует только `cio`: поставка `sqlbrc` в контейнере запланирована на 0.2.0.
+
 ## Как добавить новый инструмент
 
-1. Создайте каталог с понятным именем и `README.md` внутри (структура — как у
-   [`Container image optimizer`](Container%20image%20optimizer/README.md)).
+1. Создайте каталог с понятным именем и `README.md` внутри; образцы структуры —
+   [`Container image optimizer`](Container%20image%20optimizer/README.md) и
+   [`SQL backup restore clone`](SQL%20backup%20restore%20clone/README.md).
 2. Добавьте сборочные файлы и тесты; сборочная команда и тесты должны быть воспроизводимы локально.
-3. Заведите job в `.github/workflows/ci.yml` (линт/тесты/сборка) с `working-directory` на новый каталог.
-4. Обновите таблицу инструментов в корневом `README.md` и `CHANGELOG.md`.
+3. Заведите job в `.github/workflows/ci.yml` (линт/уязвимости/тесты/сборка) с `working-directory`
+   на новый каталог; отдельные job'ы — под образ, сканирование (`trivy-scan.yml`) и статический
+   анализ (`codeql.yml`, сейчас там собирается только `cio`).
+4. Обновите таблицу инструментов в корневом `README.md`, заведите `CHANGELOG.md` в каталоге
+   инструмента (раздел `## [Unreleased]`) и строку про него в корневом `CHANGELOG.md`.
 
 ## Безопасность
 

@@ -1,0 +1,18 @@
+;
+; Archive created at 2026-09-21 02:00:01 UTC
+;     dbname: fse-1234
+;     TOC Entries: 9
+;     Compression: -1
+;     Dump Version: 1.15-0
+;     Format: CUSTOM
+;
+;
+; Selected TOC Entries:
+;
+218; 1259 16409 TABLE public alembic_version
+219; 1259 16412 TABLE public users
+3365; 2604 16418 DEFAULT public users id
+3374; 1259 16424 INDEX public users_pkey
+3375; 1259 16427 SEQUENCE public users_id_seq
+3376; 0 0 SEQUENCE OWNED BY public users_id_seq
+3377; 0 0 SEQUENCE SET public users_id_seq -

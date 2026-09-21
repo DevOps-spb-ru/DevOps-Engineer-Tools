@@ -1,0 +1,65 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: standard
+  enable:
+    - errorlint
+    - gocritic
+    - misspell
+    - nilerr
+    - revive
+    # Правила безопасности и качества, включённые по итогам аудита cio и перенесённые сюда:
+    # код запускает внешние процессы (sudo, pg_dump, psql) и работает с секретами.
+    - dupl       # дублирующиеся блоки кода
+    - exhaustive # неполный разбор значений перечисления
+    - gocognit   # чрезмерная когнитивная сложность функции
+    - gosec      # типовые проблемы безопасности
+    - noctx      # сетевые вызовы без контекста
+    - unparam    # параметры, которые всегда одинаковы
+  settings:
+    revive:
+      rules:
+        # pg.Client.* и config.Config.* — намеренно описательные имена: «заикание»
+        # с именем пакета здесь помогает читаемости, отключаем только эту проверку.
+        - name: exported
+          arguments:
+            - checkPrivateReceivers
+            - disableStutteringCheck
+    dupl:
+      threshold: 150
+    gocognit:
+      min-complexity: 30
+    exhaustive:
+      # Ветка default считается исчерпывающим разбором: разбор режимов запуска
+      # и уровней отчёта осознанно возвращает общее поведение для неизвестных значений.
+      default-signifies-exhaustive: true
+    gosec:
+      # G304/G703 (файл по переменному и «подконтрольному» пути) не нужны: sqlbrc
+      # читает конфиг и архивы по путям, которые задал администратор в конфиге или
+      # флагом CLI, а имена баз из веб-формы проходят проверку pg.ValidateDBName
+      # (латиница, цифры, «_», «-», «.») и в путь попадают только в виде каталога базы.
+      excludes:
+        - G304
+        - G703
+  exclusions:
+    generated: lax
+    rules:
+      # В тестах допускаем вольности: гонять те же правила, что и в коде, смысла нет.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gocritic
+          - revive
+          - dupl
+          - gosec
+          - gocognit
+          - unparam
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
