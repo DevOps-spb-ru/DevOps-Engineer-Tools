@@ -1,0 +1,45 @@
+name: Trivy scan
+
+# Отдельный workflow: сканирование собранного образа утилиты и загрузка отчёта в GitHub Security.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+env:
+  PROJECT_DIR: Container image optimizer
+  IMAGE_TAG: cio:scan
+
+jobs:
+  scan:
+    name: Сканирование образа
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4.4.1
+      - name: Собрать образ
+        uses: docker/build-push-action@v7.4.0
+        with:
+          context: "${{ env.PROJECT_DIR }}"
+          push: false
+          load: true
+          tags: ${{ env.IMAGE_TAG }}
+      - name: Trivy (SARIF)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE_TAG }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "0"
+      - name: Загрузить отчёт в GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-container-image-optimizer
