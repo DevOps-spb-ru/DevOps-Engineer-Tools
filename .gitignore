@@ -4,6 +4,7 @@
 
 # Go: артефакты сборки и отчёты о покрытии
 bin/
+dist/
 *.exe
 *.test
 coverage

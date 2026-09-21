@@ -1,0 +1,85 @@
+name: Release
+
+# Релиз запускается по тегу вида cio-v0.1.0 (схема тегов и чеклист — в CONTRIBUTING.md):
+# собираются бинари для основных платформ, создаётся GitHub Release
+# и публикуется образ в GitHub Packages (ghcr.io/devops-spb-ru/cio).
+on:
+  push:
+    tags: ["cio-v*"]
+
+permissions:
+  contents: read
+
+env:
+  PROJECT_DIR: Container image optimizer
+  IMAGE: ghcr.io/devops-spb-ru/cio
+
+jobs:
+  release:
+    name: Бинари и GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: "Container image optimizer/go.mod"
+          cache-dependency-path: "Container image optimizer/go.sum"
+      - name: Собрать бинари
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#cio-v}"
+          mkdir -p dist
+          for target in linux/amd64 linux/arm64 darwin/arm64 windows/amd64; do
+            os="${target%%/*}"
+            arch="${target##*/}"
+            ext=""
+            if [ "$os" = "windows" ]; then ext=".exe"; fi
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
+              go build -trimpath \
+                -ldflags "-s -w -X main.version=${version} -X main.commit=${GITHUB_SHA::7} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                -o "dist/cio-${os}-${arch}${ext}" ./cmd/cio
+          done
+          (cd dist && sha256sum ./* > SHA256SUMS)
+          ls -l dist
+      - name: Проверить версию в бинаре
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: ./dist/cio-linux-amd64 --version
+      - name: Создать GitHub Release
+        working-directory: ${{ env.PROJECT_DIR }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "cio ${GITHUB_REF_NAME#cio-v}" \
+            --generate-notes
+
+  image:
+    name: Образ в GitHub Packages
+    runs-on: ubuntu-latest
+    needs: [release]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v4.4.1
+      - name: Войти в ghcr.io
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Собрать и опубликовать образ
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#cio-v}"
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --build-arg VERSION="$version" \
+            --build-arg REVISION="${GITHUB_SHA}" \
+            --tag "${IMAGE}:${version}" \
+            --tag "${IMAGE}:latest" \
+            --push \
+            "${{ env.PROJECT_DIR }}"
+      - name: Проверить пакет
+        run: docker buildx imagetools inspect "${IMAGE}:${GITHUB_REF_NAME#cio-v}"
