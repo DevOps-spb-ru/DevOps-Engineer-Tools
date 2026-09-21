@@ -151,12 +151,14 @@ const (
 	SQLRoleInfo = `SELECT current_user, rolsuper, rolcreatedb FROM pg_roles WHERE rolname = current_user`
 	// SQLListDatabases возвращает базы, их владельцев, кодировку, локаль, размер
 	// и число активных подключений. numbackends виден всем ролям, в отличие от pg_stat_activity.
+	// Каталог pg_database ссылается на табличное пространство колонкой dattablespace:
+	// dbtablespace в PostgreSQL нет, и обращение к ней роняет запрос.
 	SQLListDatabases = `SELECT d.datname, pg_get_userbyid(d.datdba), pg_encoding_to_char(d.encoding),
        d.datcollate, d.datctype, COALESCE(t.spcname, 'pg_default'),
        pg_database_size(d.datname), d.datallowconn, d.datistemplate,
        COALESCE(s.numbackends, 0)
 FROM pg_database d
-LEFT JOIN pg_tablespace t ON t.oid = d.dbtablespace
+LEFT JOIN pg_tablespace t ON t.oid = d.dattablespace
 LEFT JOIN pg_stat_database s ON s.datname = d.datname
 ORDER BY d.datname`
 )
