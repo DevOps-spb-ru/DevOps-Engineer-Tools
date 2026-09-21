@@ -53,6 +53,11 @@ make build
 | `--no-trivy` | `false` | не запускать сканирование |
 | `--trivy-bin` | поиск в `PATH` | путь к локальному бинарю Trivy |
 | `--trivy-image` | `aquasec/trivy:latest` | образ Trivy для запуска через docker |
+| `--trivy-image-src` | порядок внутри Trivy | источники образов через запятую: `docker,containerd,podman,remote` |
+| `--trivy-docker-socket` | `false` | смонтировать сокет Docker в контейнер Trivy, чтобы сканировать локальные образы |
+| `--trivy-cache` | `cio-trivy-cache` | том с базой уязвимостей Trivy (`none` — не сохранять кэш) |
+| `--trivy-arg` | не задан | дополнительный аргумент Trivy, можно повторять |
+| `--trivy-timeout` | `5m` | предел времени на один запуск Trivy |
 | `--fail-on` | не задан | вернуть код 1 при находках уровня `info\|low\|medium\|high\|critical` и выше |
 
 Примеры:
@@ -62,6 +67,58 @@ cio analyze postgres:15-alpine
 cio analyze --format json --output report.json myapp:1.0
 cio analyze --no-trivy --fail-on high myapp:1.0
 ```
+
+## Сканирование приватных и локальных образов
+
+Trivy запускается отдельным процессом и не наследует доступ к демону Docker, поэтому для приватного
+реестра и для образа, которого нет в реестре, нужны явные настройки.
+
+| Ситуация | Что делать |
+| --- | --- |
+| образ есть только локально | `cio analyze --trivy-docker-socket myapp:1.0` — сокет демона монтируется в контейнер |
+| приватный реестр, креды уже в `docker login` | локальный бинарь Trivy: `cio analyze --trivy-image-src remote myapp:1.0` |
+| приватный реестр, Trivy в контейнере | задать `TRIVY_USERNAME`/`TRIVY_PASSWORD` (они передаются в контейнер по имени) |
+| самоподписанный сертификат реестра | `cio analyze --trivy-arg=--insecure myapp:1.0` |
+| сканирование долго не укладывается в лимит | `cio analyze --trivy-timeout 15m myapp:1.0` |
+| реестр требует авторизации, но кредов нет | `TRIVY_PASSWORD` не задавать, а запустить `trivy` на хосте после `docker login` |
+
+Пример для PowerShell:
+
+```powershell
+$env:TRIVY_USERNAME = 'ci-reader'
+$env:TRIVY_PASSWORD = Read-Host 'пароль реестра'
+cio analyze docker-hub.iitdgroup.ru/finsynapse/back:5.4.1
+```
+
+Переменные `TRIVY_USERNAME`, `TRIVY_PASSWORD` и `TRIVY_INSECURE` передаются в контейнер **по имени**:
+значения не попадают ни в командную строку, ни в отчёт. База уязвимостей сохраняется в томе
+`--trivy-cache` (по умолчанию `cio-trivy-cache`), поэтому повторные запуски не скачивают её заново;
+для параллельных запусков используйте `--trivy-cache none`.
+
+Если сканирование не удалось, отчёт печатает причину целиком, подсказку по типовой ошибке и команду
+запуска сканера — её можно выполнить вручную и увидеть полный лог:
+
+```
+СКАНИРОВАНИЕ TRIVY
+  недоступно: trivy (docker:aquasec/trivy:latest): run error: image scan error: ... 4 errors occurred:
+              * docker error: failed to connect to the docker API at unix:///var/run/docker.sock ...
+              * remote error: GET https://docker-hub.iitdgroup.ru/v2/app/manifests/5.4.1: UNAUTHORIZED
+  подсказка:  реестр требует авторизации: задайте TRIVY_USERNAME и TRIVY_PASSWORD ...
+  команда:    docker run --rm -v cio-trivy-cache:/root/.cache/trivy aquasec/trivy:latest image ...
+```
+
+Кадры трассировки Go из вывода Trivy в отчёт не попадают, а причина сбоя не обрезается: у Trivy
+она часто находится в конце цепочки ошибок.
+
+Проверить, что локальная копия образа целая (Trivy читает образы демона через `docker save`):
+
+```powershell
+docker save myapp:1.0 -o image.tar
+(Get-Item image.tar).Length / 1MB   # должно быть сопоставимо с размером образа
+```
+
+Архив в несколько килобайт вместо сотен мегабайт означает, что слои в локальном хранилище неполные:
+перекачайте образ (`docker pull myapp:1.0`) или сканируйте из реестра (`--trivy-image-src remote`).
 
 ## Пример вывода (фрагмент)
 
@@ -147,7 +204,11 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock cio:local analyze a
 - размер слоя берётся из метаданных Docker (без распаковки), поэтому может отличаться от реального
   занимаемого места на диске;
 - Trivy обновляет базу уязвимостей из сети: первый запуск может быть долгим, а без сети сканирование
-  недоступно (в отчёте появится строка «недоступно: ...», код возврата при этом остаётся 0, если не задан `--fail-on`);
+  недоступно (в отчёте появится строка «недоступно: ...» с причиной и подсказкой, код возврата при этом
+  остаётся 0, если не задан `--fail-on`);
+- Trivy читает локальный образ через `docker save`: если локальная копия неполная (архив в несколько
+  килобайт вместо размера образа), сканирование падает с `not found in tar` — перекачайте образ
+  (`docker pull`) или используйте `--trivy-image-src remote`;
 - анализ делается по локальному образу: если образа нет на машине, сначала выполните `docker pull`.
 
 ## Лицензия
