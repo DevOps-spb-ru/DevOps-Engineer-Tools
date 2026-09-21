@@ -50,6 +50,10 @@ go build -trimpath -o bin/sqlbrc.exe ./cmd/sqlbrc   # для sqlbrc (.exe — т
 
 Дымовая проверка на живом Docker: `.work/smoke-cio.ps1` (добавьте `-WithTrivy`, чтобы проверить сканирование).
 
+Дымовая проверка `sqlbrc`: `.work/smoke-serve.ps1` поднимает `sqlbrc serve` с временным конфигом
+и проверяет вход, страницы, токен API и отказ операции без PostgreSQL (нужен PowerShell 7:
+скрипт использует `HttpClient`).
+
 Проверка `sqlbrc` без живого PostgreSQL: `bin/sqlbrc doctor --config deploy/config.example.yaml` —
 отчёт по проверкам готовности сервера; код возврата 1 означает «есть ошибки», в том числе
 «на этой ОС проверить не удалось» (например, на Windows).

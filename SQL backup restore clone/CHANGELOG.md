@@ -6,7 +6,23 @@
 
 ## [Unreleased]
 
-Изменений пока нет.
+Веб-интерфейс и API: команда `serve` с теми же операциями, что и в CLI.
+
+### Add
+
+- команда `sqlbrc serve [--listen адрес]` — веб-интерфейс и API поверх тех же операций:
+  бэкап, восстановление, клонирование и уборка запускаются формой на странице или запросом
+  к API, а ход работы виден в журнале задач;
+- `internal/auth`: вход по bcrypt-хэшам из `auth.users`, сессии в памяти с временем жизни
+  `auth.session_ttl`, ограничение неудачных попыток входа (`auth.login_backoff`,
+  `auth.max_login_attempts`), токены API из `auth.token_file` в формате `<логин>:<токен>`;
+- `internal/web`: страницы «Базы и бэкапы» и «Журнал задач», форма входа; защита от подделки
+  запросов (CSRF-токен сессии в каждой форме), cookie сессии `HttpOnly` + `SameSite=Strict`,
+  заголовки безопасности, предел размера запроса `server.max_body_bytes`;
+- API `/api/v1`: `GET /backups`, `GET /jobs`, `POST /backup`, `POST /restore`, `POST /clone`,
+  `POST /prune` — доступ по токену (`Authorization: Bearer …`), ответы в JSON, а отказ операции
+  отличается от сбоя (`rejected`/`conflict` против `internal`);
+- `GET /healthz` — проверка живости сервиса для systemd и мониторинга (без аутентификации).
 
 ## [0.2.0] - 2026-09-21
 
