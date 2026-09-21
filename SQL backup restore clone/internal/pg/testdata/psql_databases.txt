@@ -1,0 +1,4 @@
+fse-1234|app_owner|UTF8|en_US.UTF-8|en_US.UTF-8|pg_default|104857600|t|f|3
+fse-5678|app_owner|UTF8|C.UTF-8|C.UTF-8|pg_default|52428800|t|f|0
+postgres|postgres|UTF8|C.UTF-8|C.UTF-8|pg_default|8617975|t|f|1
+template0|postgres|UTF8|C.UTF-8|C.UTF-8|pg_default|8556543|f|t|0

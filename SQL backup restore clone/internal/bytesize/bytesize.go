@@ -1,0 +1,98 @@
+// Package bytesize разбирает человекочитаемые размеры ("7GB", "512MiB", "1024")
+// и позволяет задавать их прямо в YAML-конфиге сервиса.
+package bytesize
+
+import (
+	"fmt"
+	"math"
+	"regexp"
+	"strconv"
+	"strings"
+
+	"gopkg.in/yaml.v3"
+)
+
+// sizePattern разбирает значения вида "10MB", "1.5GiB", "512K", "1024".
+var sizePattern = regexp.MustCompile(`^([0-9]+(?:\.[0-9]+)?)\s*([a-zA-Z]*)$`)
+
+// sizeUnits — поддерживаемые единицы измерения размера.
+var sizeUnits = map[string]int64{
+	"":    1,
+	"B":   1,
+	"K":   1000,
+	"KB":  1000,
+	"KIB": 1024,
+	"M":   1000 * 1000,
+	"MB":  1000 * 1000,
+	"MIB": 1024 * 1024,
+	"G":   1000 * 1000 * 1000,
+	"GB":  1000 * 1000 * 1000,
+	"GIB": 1024 * 1024 * 1024,
+}
+
+// Size — размер в байтах. В конфиге он задаётся строкой ("5GB"), в отчётах
+// печатается в человекочитаемом виде: порог свободного места должен быть наглядным.
+type Size int64
+
+// Bytes возвращает размер в байтах.
+func (s Size) Bytes() int64 { return int64(s) }
+
+// String реализует fmt.Stringer.
+func (s Size) String() string { return HumanSize(int64(s)) }
+
+// UnmarshalYAML принимает строку ("5GB", "1.5GiB") или число (байты).
+func (s *Size) UnmarshalYAML(value *yaml.Node) error {
+	parsed, err := ParseSize(value.Value)
+	if err != nil {
+		return err
+	}
+	*s = Size(parsed)
+	return nil
+}
+
+// MarshalYAML печатает размер строкой: конфиг и снапшот настроек остаются читаемыми.
+func (s Size) MarshalYAML() (any, error) { return s.String(), nil }
+
+// ParseSize переводит человекочитаемый размер ("10MB", "1.5GiB", "1024") в байты.
+func ParseSize(value string) (int64, error) {
+	matches := sizePattern.FindStringSubmatch(strings.TrimSpace(value))
+	if matches == nil {
+		return 0, fmt.Errorf("некорректный размер %q (пример: 1024, 512KB, 10MB, 1.5GB, 5GiB)", value)
+	}
+	number, err := strconv.ParseFloat(matches[1], 64)
+	if err != nil {
+		return 0, fmt.Errorf("некорректный размер %q: %w", value, err)
+	}
+	multiplier, ok := sizeUnits[strings.ToUpper(matches[2])]
+	if !ok {
+		return 0, fmt.Errorf(
+			"неизвестная единица измерения в %q (поддерживаются B, KB, KiB, MB, MiB, GB, GiB)", value)
+	}
+	total := number * float64(multiplier)
+	// Без проверки границы приведение float64 к int64 при переполнении даёт
+	// отрицательное число — порог свободного места становился отрицательным,
+	// и проверка места на диске пропускала бы всё.
+	if total >= float64(math.MaxInt64) {
+		return 0, fmt.Errorf("размер %q слишком велик: больше %d байт", value, int64(math.MaxInt64))
+	}
+	return int64(total), nil
+}
+
+// HumanSize форматирует размер в удобочитаемый вид, например "412.3 MB".
+func HumanSize(bytes int64) string {
+	const (
+		unit     = 1000
+		decimals = "%.1f %s"
+	)
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	units := []string{"KB", "MB", "GB", "TB", "PB"}
+	value := float64(bytes)
+	index := -1
+	for value >= unit && index < len(units)-1 {
+		value /= unit
+		index++
+	}
+	return fmt.Sprintf(decimals, value, units[index])
+}
