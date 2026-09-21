@@ -14,8 +14,8 @@ const testBcryptHash = "$2y$10$abcdefghijklmnopqrstuu0123456789abcdefghijklmnopq
 
 // validConfig возвращает конфигурацию, проходящую проверку: значения по умолчанию,
 // пользователь веб-интерфейса (без него сервис запускаться не должен) и
-// allow_insecure, как в deploy/config.example.yaml — интерфейс слушает LAN
-// из README (0.0.0.0:8088 без reverse-proxy).
+// allow_insecure, как в deploy/config.example.yaml: интерфейс слушает LAN
+// (0.0.0.0:8088 без reverse-proxy).
 func validConfig() Configuration {
 	cfg := Default()
 	cfg.Server.AllowInsecure = true
@@ -28,9 +28,9 @@ func TestDefault(t *testing.T) {
 	if cfg.SchemaVersion != SchemaVersion {
 		t.Errorf("schema_version = %d, ожидался %d", cfg.SchemaVersion, SchemaVersion)
 	}
-	// Политика хранения из README: последние 7 бэкапов каждой базы.
+	// Политика хранения по умолчанию: последние 7 бэкапов каждой базы.
 	if cfg.Storage.KeepLast != 7 {
-		t.Errorf("storage.keep_last = %d, ожидалось 7 (требование README)", cfg.Storage.KeepLast)
+		t.Errorf("storage.keep_last = %d, ожидалось 7 (значение по умолчанию)", cfg.Storage.KeepLast)
 	}
 	if cfg.Server.Listen != "0.0.0.0:8088" {
 		t.Errorf("server.listen = %q, ожидалось 0.0.0.0:8088", cfg.Server.Listen)
@@ -47,7 +47,7 @@ func TestDefault(t *testing.T) {
 	if !cfg.Databases.AutoBackupBeforeRestore || !cfg.Databases.TerminateOnRestore {
 		t.Errorf("защита перед восстановлением выключена: %+v", cfg.Databases)
 	}
-	// Минимальный конфиг из README обязан проходить проверку после добавления пользователя.
+	// Конфиг из deploy/config.example.yaml обязан проходить проверку после добавления пользователя.
 	if err := validConfig().Validate(); err != nil {
 		t.Fatalf("конфигурация по умолчанию с пользователем не проходит проверку: %v", err)
 	}
@@ -510,7 +510,7 @@ func TestIsLoopbackHost(t *testing.T) {
 		{host: "localhost", want: true},
 		{host: "", want: false},
 		{host: "0.0.0.0", want: false},
-		{host: "192.168.7.96", want: false},
+		{host: "10.0.0.5", want: false},
 		{host: "::", want: false},
 	}
 

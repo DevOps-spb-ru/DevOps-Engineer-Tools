@@ -18,7 +18,7 @@ import (
 const testBcrypt = "$2y$10$abcdefghijklmnopqrstuu0123456789abcdefghijklmnopqrstu"
 
 // testConfig возвращает конфигурацию, проходящую проверку: интерфейс слушает LAN
-// из README (0.0.0.0:8088) с осознанным allow_insecure и одним пользователем.
+// (0.0.0.0:8088) с осознанным allow_insecure и одним пользователем.
 func testConfig() config.Configuration {
 	cfg := config.Default()
 	cfg.Server.AllowInsecure = true

@@ -50,7 +50,7 @@ func TestBlocksToBytes(t *testing.T) {
 }
 
 // TestOSFSFreeSpace проверяет расчёт места на реальном каталоге: тест выполняется
-// только на Linux (сервер из README) и проверяет, что значения неотрицательны
+// только на Linux (целевая платформа сервиса) и проверяет, что значения неотрицательны
 // и согласованы между собой.
 func TestOSFSFreeSpace(t *testing.T) {
 	dir := t.TempDir()

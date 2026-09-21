@@ -18,8 +18,9 @@ import (
 	"github.com/DevOps-spb-ru/DevOps-Engineer-Tools/sql-backup-restore-clone/internal/pg"
 )
 
-// checkSudo проверяет, что утилиты PostgreSQL выполняются под postgres без пароля:
-// это главная зависимость сервиса на сервере из README (логин по ключу, sudo -i).
+// checkSudo проверяет, что утилиты PostgreSQL выполняются под владельцем кластера без
+// пароля: это главная зависимость сервиса (в Debian пароль не спрашивают — работа идёт
+// через локальный сокет и правило sudoers с фиксированным списком утилит).
 func checkSudo(ctx context.Context, report *Report, opts Options) {
 	cfg := opts.Cfg.Postgres
 	if mode := cfg.Mode; mode != "" && mode != pg.ModeSudo {

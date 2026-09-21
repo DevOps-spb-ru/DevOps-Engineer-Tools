@@ -32,7 +32,7 @@ func writeConfig(t *testing.T, document string) string {
 	return path
 }
 
-// validConfigDocument — конфиг из README: интерфейс на 0.0.0.0:8088 без TLS
+// validConfigDocument — конфиг из deploy/config.example.yaml: интерфейс на 0.0.0.0:8088 без TLS
 // с осознанным allow_insecure, один встроенный пользователь, каталог /var/backups/sqlbrc.
 const validConfigDocument = `
 server:
@@ -191,7 +191,7 @@ func TestRunDoctorJSON(t *testing.T) {
 	if report.ConfigPath != configPath {
 		t.Errorf("путь к конфигу в отчёте = %q, ожидался %q", report.ConfigPath, configPath)
 	}
-	// Конфиг из README обязан быть корректным: ошибка здесь означала бы, что
+	// Конфиг из deploy/config.example.yaml обязан быть корректным: ошибка здесь означала бы, что
 	// образец для администратора не работает.
 	var configCheck *doctor.Check
 	for index := range report.Checks {

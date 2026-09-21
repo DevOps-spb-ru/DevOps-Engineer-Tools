@@ -219,7 +219,7 @@ type LoggingConfig struct {
 	Format string `yaml:"format"`
 }
 
-// Default возвращает конфигурацию по умолчанию для сервера из README:
+// Default возвращает конфигурацию по умолчанию для типового сервера:
 // Debian 12, PostgreSQL 15, бэкапы в /var/backups/sqlbrc, интерфейс на 0.0.0.0:8088.
 func Default() Configuration {
 	return Configuration{

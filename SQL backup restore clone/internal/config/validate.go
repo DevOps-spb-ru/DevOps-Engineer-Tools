@@ -201,7 +201,7 @@ func (c Configuration) validateStorage(found *problems) {
 		found.add("storage.state_dir: не должен совпадать со storage.dir")
 	}
 	if c.Storage.KeepLast < 1 || c.Storage.KeepLast > 1000 {
-		found.add("storage.keep_last = %d вне диапазона 1..1000 (в README — 7 бэкапов на БД)", c.Storage.KeepLast)
+		found.add("storage.keep_last = %d вне диапазона 1..1000 (по умолчанию — 7 бэкапов на БД)", c.Storage.KeepLast)
 	}
 	if c.Storage.KeepDays < 1 || c.Storage.KeepDays > 3650 {
 		found.add("storage.keep_days = %d вне диапазона 1..3650", c.Storage.KeepDays)

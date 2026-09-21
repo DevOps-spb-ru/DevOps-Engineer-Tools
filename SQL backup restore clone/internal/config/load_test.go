@@ -22,8 +22,8 @@ func writeConfig(t *testing.T, document string) string {
 	return path
 }
 
-// minimalConfig — минимальный конфиг из README: всё остальное берётся из значений
-// по умолчанию, поэтому файл должен читаться и проверяться.
+// minimalConfig — минимальный конфиг как в deploy/config.example.yaml: всё остальное
+// берётся из значений по умолчанию, поэтому файл должен читаться и проверяться.
 const minimalConfig = `
 server:
   listen: "0.0.0.0:8088"
@@ -210,7 +210,7 @@ func TestApplyEnv(t *testing.T) {
 		"SQLBRC_SERVER_TLS_CERT_FILE":   "/etc/sqlbrc/tls.crt",
 		"SQLBRC_SERVER_TLS_KEY_FILE":    "/etc/sqlbrc/tls.key",
 		"SQLBRC_AUTH_TOKEN_FILE":        "/etc/sqlbrc/tokens",
-		"SQLBRC_POSTGRES_SUDO_USER":     "pgsql",
+		"SQLBRC_POSTGRES_SUDO_USER":     "dbowner",
 		"SQLBRC_POSTGRES_BIN_DIR":       "/usr/local/bin",
 		"SQLBRC_POSTGRES_MODE":          "custom-mode",
 		"SQLBRC_POSTGRES_PASSWORD_FILE": "",
@@ -234,7 +234,7 @@ func TestApplyEnv(t *testing.T) {
 	if !cfg.Server.TLS.Enabled() {
 		t.Errorf("TLS не применился: %+v", cfg.Server.TLS)
 	}
-	if cfg.Postgres.SudoUser != "pgsql" || cfg.Postgres.BinDir != "/usr/local/bin" || cfg.Postgres.Mode != "custom-mode" {
+	if cfg.Postgres.SudoUser != "dbowner" || cfg.Postgres.BinDir != "/usr/local/bin" || cfg.Postgres.Mode != "custom-mode" {
 		t.Errorf("настройки PostgreSQL не применились: %+v", cfg.Postgres)
 	}
 	if cfg.Storage.Dir != "/srv/backups" || cfg.Storage.KeepLast != 3 || cfg.Storage.KeepDays != 30 {
