@@ -12,6 +12,13 @@ linters:
     - misspell
     - nilerr
     - revive
+    # Правила безопасности и качества, включённые по итогам аудита.
+    - dupl       # дублирующиеся блоки кода
+    - exhaustive # неполный разбор значений перечисления
+    - gocognit   # чрезмерная когнитивная сложность функции
+    - gosec      # типовые проблемы безопасности
+    - noctx      # сетевые вызовы без контекста
+    - unparam    # параметры, которые всегда одинаковы
   settings:
     revive:
       rules:
@@ -21,6 +28,19 @@ linters:
           arguments:
             - checkPrivateReceivers
             - disableStutteringCheck
+    dupl:
+      threshold: 150
+    gocognit:
+      min-complexity: 30
+    exhaustive:
+      # Ветка default считается исчерпывающим разбором: правила анализа осознанно
+      # возвращают общее поведение для неизвестных значений.
+      default-signifies-exhaustive: true
+    gosec:
+      # G304 (файл по переменному пути) не нужен: cio пишет только туда, куда указал
+      # пользователь флагом --output.
+      excludes:
+        - G304
   exclusions:
     generated: lax
     rules:
@@ -30,6 +50,10 @@ linters:
           - errcheck
           - gocritic
           - revive
+          - dupl
+          - gosec
+          - gocognit
+          - unparam
 
 formatters:
   enable:

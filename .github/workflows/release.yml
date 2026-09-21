@@ -7,6 +7,11 @@ on:
   push:
     tags: ["cio-v*"]
 
+# Релизы не отменяем: прерывать публикацию артефактов нельзя.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
@@ -18,14 +23,23 @@ jobs:
   release:
     name: Бинари и GitHub Release
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
+      # Нужны для attestation сборки (OIDC-токен и запись attestations).
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: "Container image optimizer/go.mod"
           cache-dependency-path: "Container image optimizer/go.sum"
+          # Кэш модулей отключён: job публикует артефакты, а общий кэш можно
+          # отравить из другой ветки (audit cache-poisoning у zizmor).
+          cache: false
       - name: Собрать бинари
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
@@ -47,6 +61,19 @@ jobs:
       - name: Проверить версию в бинаре
         working-directory: ${{ env.PROJECT_DIR }}
         run: ./dist/cio-linux-amd64 --version
+      - name: SBOM бинарей (CycloneDX)
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          path: "${{ env.PROJECT_DIR }}/dist"
+          format: cyclonedx-json
+          output-file: "${{ env.PROJECT_DIR }}/dist/cio-binaries.sbom.cdx.json"
+          # Артефакты публикуем сами: SBOM идёт в релиз вместе с бинарями.
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Attestation сборки бинарей
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: "${{ env.PROJECT_DIR }}/dist/*"
       - name: Создать GitHub Release
         working-directory: ${{ env.PROJECT_DIR }}
         env:
@@ -60,26 +87,56 @@ jobs:
     name: Образ в GitHub Packages
     runs-on: ubuntu-latest
     needs: [release]
+    timeout-minutes: 40
     permissions:
       contents: read
       packages: write
+      # Ключи для cosign не нужны: подпись keyless через OIDC GitHub.
+      id-token: write
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v4.4.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Войти в ghcr.io
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # В run-блоке нет подстановок github.*: их легко подменить (template-injection),
+        # значения передаются переменными окружения.
+        run: echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
       - name: Собрать и опубликовать образ
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#cio-v}"
+          tags=(--tag "${IMAGE}:${version}")
+          # Тег latest двигаем только на стабильном релизе: у предрелиза (0.2.0-rc.1)
+          # он не должен перекрывать последнюю рабочую версию.
+          if [[ "$version" == *-* ]]; then
+            echo "предрелиз $version: тег latest не обновляем"
+          else
+            tags+=(--tag "${IMAGE}:latest")
+          fi
+          # --sbom и --provenance кладут рядом с образом attestations: видно,
+          # из каких исходников и как собран образ.
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             --build-arg VERSION="$version" \
             --build-arg REVISION="${GITHUB_SHA}" \
-            --tag "${IMAGE}:${version}" \
-            --tag "${IMAGE}:latest" \
+            --provenance=true \
+            --sbom=true \
+            "${tags[@]}" \
             --push \
-            "${{ env.PROJECT_DIR }}"
+            "${PROJECT_DIR}"
       - name: Проверить пакет
         run: docker buildx imagetools inspect "${IMAGE}:${GITHUB_REF_NAME#cio-v}"
+      - name: Установить cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Подписать образ (keyless)
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#cio-v}"
+          digest=$(docker buildx imagetools inspect "${IMAGE}:${version}" --format '{{.Manifest.Digest}}')
+          cosign sign --yes "${IMAGE}@${digest}"
+          echo "подписан ${IMAGE}@${digest}"
+

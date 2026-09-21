@@ -122,7 +122,9 @@ func runAnalyze(ctx context.Context, out io.Writer, imageRef string, flags *anal
 
 	writer := out
 	if flags.output != "" {
-		file, createErr := os.Create(flags.output)
+		// Отчёт может содержать секреты из истории сборки и токены из находок,
+		// поэтому файл создаётся с правами только для владельца (0600).
+		file, createErr := openReportFile(flags.output)
 		if createErr != nil {
 			return fmt.Errorf("не удалось создать файл отчёта %q: %w", flags.output, createErr)
 		}
@@ -138,6 +140,12 @@ func runAnalyze(ctx context.Context, out io.Writer, imageRef string, flags *anal
 		return &codedError{code: 1, err: fmt.Errorf("найдены замечания уровня %s и выше", failOn)}
 	}
 	return nil
+}
+
+// openReportFile создаёт файл отчёта с правами только для владельца: в отчёт
+// попадают команды сборки образа и находки сканера, читать его посторонним незачем.
+func openReportFile(path string) (*os.File, error) {
+	return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 }
 
 // trivySocketPath возвращает путь к сокету демона для монтирования в контейнер Trivy.

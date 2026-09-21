@@ -18,6 +18,10 @@ func TestParseSize(t *testing.T) {
 		{name: "неизвестная единица", value: "10XB", wantErr: true},
 		{name: "текст", value: "много", wantErr: true},
 		{name: "двойной суффикс", value: "10MBMB", wantErr: true},
+		// Переполнение int64: без проверки границы получался отрицательный порог.
+		{name: "переполнение int64", value: "999999999999999999999999", wantErr: true},
+		{name: "переполнение в гигабайтах", value: "9999999999999GiB", wantErr: true},
+		{name: "максимально допустимый размер", value: "9223372036GB", want: 9_223_372_036_000_000_000},
 	}
 
 	for _, test := range tests {

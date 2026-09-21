@@ -31,7 +31,7 @@
 - топ-N самых больших слоёв с долей от размера образа;
 - набор правил анализа истории сборки (пакет `internal/analyze`) с уровнем значимости и рекомендацией;
 - двойной режим Trivy: сначала ищется локальный бинарь, если его нет — запускается контейнер
-  `aquasec/trivy:latest` через `docker run`; можно полностью отключить (`--no-trivy`);
+  `aquasec/trivy:0.74.0` через `docker run`; можно полностью отключить (`--no-trivy`);
 - форматы отчёта: `table` (для человека) и `json` (для CI и интеграций);
 - код возврата 1 при находках уровня `--fail-on` — удобно встраивать в пайплайны;
 - утилита **только читает** данные об образах: ничего не собирает, не удаляет и не изменяет.
@@ -62,7 +62,7 @@
 | Компонент | Версия | Обязателен |
 | --- | --- | --- |
 | Docker Engine | 24+ (проверено на 29.8.0) | да: через его API берутся метаданные и история слоёв |
-| Go | 1.25+ | только для сборки из исходников |
+| Go | 1.25.14+ | только для сборки из исходников (минимальный патч зафиксирован в `go.mod`) |
 | Trivy | 0.74+ или образ `aquasec/trivy` | нет: без Trivy отчёт по слоям всё равно строится |
 
 ## Сборка и запуск
@@ -95,7 +95,7 @@ make build
 | `--huge-layer-size` | `100MB` | порог «очень крупного» слоя |
 | `--no-trivy` | `false` | не запускать сканирование |
 | `--trivy-bin` | поиск в `PATH` | путь к локальному бинарю Trivy |
-| `--trivy-image` | `aquasec/trivy:latest` | образ Trivy для запуска через docker |
+| `--trivy-image` | `aquasec/trivy:0.74.0` | образ Trivy для запуска через docker |
 | `--trivy-image-src` | порядок внутри Trivy | источники образов через запятую: `docker,containerd,podman,remote` |
 | `--trivy-docker-socket` | `false` | смонтировать сокет Docker в контейнер Trivy, чтобы сканировать локальные образы |
 | `--trivy-cache` | `cio-trivy-cache` | том с базой уязвимостей Trivy (`none` — не сохранять кэш) |
@@ -285,7 +285,7 @@ cio analyze docker-hub.iitdgroup.ru/finsynapse/back:5.4.1
 
 ```
 СКАНИРОВАНИЕ TRIVY
-  недоступно: trivy (docker:aquasec/trivy:latest): run error: image scan error: ... 4 errors occurred:
+  недоступно: trivy (docker:aquasec/trivy:0.74.0): run error: image scan error: ... 4 errors occurred:
               * docker error: failed to connect to the docker API at unix:///var/run/docker.sock ...
               * remote error: GET https://docker-hub.iitdgroup.ru/v2/app/manifests/5.4.1: UNAUTHORIZED
   подсказка:  реестр требует авторизации: задайте TRIVY_USERNAME и TRIVY_PASSWORD ...
@@ -339,7 +339,7 @@ docker pull myapp:1.0
             рекомендация: перенесите сборку артефактов в multi-stage...
 
 СКАНИРОВАНИЕ TRIVY
-  Источник:        docker:aquasec/trivy:latest
+  Источник:        docker:aquasec/trivy:0.74.0
   Уязвимостей:     12
   Мисконфигураций: 2
   По уровням:      CRITICAL=1  HIGH=5  MEDIUM=6
@@ -392,21 +392,43 @@ docker pull myapp:1.0
 
 ```bash
 docker build -t cio:local .
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock cio:local analyze alpine:3.20
+docker run --rm --group-add 0 -v /var/run/docker.sock:/var/run/docker.sock cio:local analyze alpine:3.20
 ```
 
 Контейнеру нужен доступ к `docker.sock` — утилита читает данные об образах через API демона.
+Сокет принадлежит `root` с правами `660`, поэтому образ запускается непривилегированным
+пользователем `cio`, а доступ выдаётся группой сокета:
+
+| Система | Как выдать доступ к сокету |
+| --- | --- |
+| Docker Desktop (Windows, macOS) | `--group-add 0` (сокет принадлежит `root:root`) |
+| Linux | `--group-add "$(stat -c '%g' /var/run/docker.sock)"` (обычно группа `docker`) |
+
+Без `--group-add` контейнер запустится, но сканирование не сможет обратиться к демону: в отчёте
+будет ошибка доступа к сокету с подсказкой, а размеры слоёв и замечания по сборке останутся.
+
+База уязвимостей Trivy в образе лежит в `/home/cio/.cache/trivy`. Чтобы не скачивать её при
+каждом запуске, подключите том — у свежего тома права совпадут с каталогом образа:
+
+```bash
+docker run --rm --group-add 0 \
+  -v cio-trivy-cache-img:/home/cio/.cache/trivy \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  ghcr.io/devops-spb-ru/cio:latest analyze alpine:3.20
+```
 
 Готовый образ публикуется в GitHub Packages при релизе (теги `X.Y.Z` и `latest`):
 
 ```bash
-docker run --rm ghcr.io/devops-spb-ru/cio:0.1.0 --version
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/devops-spb-ru/cio:latest analyze alpine:3.20
+docker run --rm ghcr.io/devops-spb-ru/cio:0.2.0 --version
+docker run --rm --group-add 0 -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/devops-spb-ru/cio:latest analyze alpine:3.20
 ```
 
-Версия и ревизия исходников видны и снаружи — в метках `org.opencontainers.image.version` и
-`org.opencontainers.image.revision` (`docker image inspect`), и внутри — в выводе `cio --version`.
-Локальная сборка с версией: `docker build --build-arg VERSION=0.1.0 -t cio:0.1.0 .`.
+Версия Trivy внутри образа фиксирована и переопределяется на сборке (`--build-arg TRIVY_IMAGE=...`),
+поэтому обновление сканера не меняет сборку неожиданно. Версия и ревизия исходников видны и снаружи —
+в метках `org.opencontainers.image.version` и `org.opencontainers.image.revision`
+(`docker image inspect`), и внутри — в выводе `cio --version`.
+Локальная сборка с версией: `docker build --build-arg VERSION=0.2.0 -t cio:0.2.0 .`.
 
 ## Ограничения
 
@@ -424,7 +446,12 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/devops-spb-
 - в Docker Desktop с containerd image store копия может быть неполной и в самом хранилище слоёв:
   containerd-источник Trivy падает так же (`content digest ... not found`), поэтому локальное
   сканирование такого образа невозможно — остаётся источник `remote`;
-- анализ делается по локальному образу: если образа нет на машине, сначала выполните `docker pull`.
+- анализ делается по локальному образу: если образа нет на машине, сначала выполните `docker pull`;
+- образ запускается без прав root (пользователь `cio`), поэтому доступ к `docker.sock` выдаётся
+  группой сокета (`--group-add`, см. раздел «Docker-образ»);
+- том `cio-trivy-cache`, созданный запуском Trivy-контейнера от `root` (хост-версия `cio`), не подходит
+  непривилегированному образу: для контейнера используйте отдельный том (`cio-trivy-cache-img`)
+  или запуск с `--user root`.
 
 ## Лицензия
 

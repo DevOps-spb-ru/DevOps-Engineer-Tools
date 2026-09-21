@@ -18,8 +18,10 @@ import (
 	"github.com/DevOps-spb-ru/DevOps-Engineer-Tools/container-image-optimizer/internal/analyze"
 )
 
-// DefaultImage — образ Trivy для docker-fallback.
-const DefaultImage = "aquasec/trivy:latest"
+// DefaultImage — образ Trivy для docker-fallback. Тег фиксируется: с :latest
+// состав сканера меняется между запусками, а его уязвимости попадают в отчёты
+// пользователя. Актуальную версию подсказывает Dependabot.
+const DefaultImage = "aquasec/trivy:0.74.0"
 
 // DefaultTimeout — предел времени на один запуск сканера.
 const DefaultTimeout = 5 * time.Minute
@@ -200,6 +202,8 @@ func (r execRunner) Run(ctx context.Context, bin string, args ...string) ([]byte
 	runCtx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 
+	// #nosec G204 -- команда собирается самим CLI: bin берётся из PATH или из флага
+	// --trivy-bin, args — фиксированный список плюс аргументы пользователя (--trivy-arg).
 	cmd := exec.CommandContext(runCtx, bin, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

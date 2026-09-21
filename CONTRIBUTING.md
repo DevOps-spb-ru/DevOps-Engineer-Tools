@@ -41,15 +41,22 @@ go build -trimpath -o bin/cio ./cmd/cio
 Линт: `make lint` (нужен `golangci-lint`) или `.work/lint-docker.ps1` — тот же линтер в контейнере
 `golangci/golangci-lint` с версией, которая используется в CI.
 
+Проверка зависимостей: `go install golang.org/x/vuln/cmd/govulncheck@v1.7.0`, затем `govulncheck ./...`
+(достижимые уязвимости роняют CI). Версию держим той же, что в `.github/workflows/ci.yml`: `v1.8.0`
+требует Go ≥ 1.26, а в `go.mod` объявлена 1.25.4.
+
 Дымовая проверка на живом Docker: `.work/smoke-cio.ps1` (добавьте `-WithTrivy`, чтобы проверить сканирование).
 
 ## Definition of Done
 
 1. `gofmt` без замечаний, `go vet ./...` и `go test ./...` проходят.
-2. Линт (`golangci-lint run ./...`) без новых замечаний.
-3. Новая функциональность покрыта юнит-тестами (`*_test.go` рядом с кодом).
-4. Поведение и флаги описаны в `README.md` соответствующего инструмента.
-5. Изменения пользовательского поведения отражены в `CHANGELOG.md`.
+2. Линт (`golangci-lint run ./...`) без новых замечаний: в конфиге включены `gosec`, `noctx`,
+   `exhaustive`, `unparam`, `dupl`, `gocognit` — новый код должен им соответствовать.
+3. Новая функциональность покрыта юнит-тестами (`*_test.go` рядом с кодом); для разбора внешних
+   данных (отчёты сканера, значения флагов) добавляется fuzz-цель (`Fuzz*`).
+4. `govulncheck ./...` не находит достижимых уязвимостей (тот же шаг есть в CI).
+5. Поведение и флаги описаны в `README.md` соответствующего инструмента.
+6. Изменения пользовательского поведения отражены в `CHANGELOG.md`.
 
 ## Коммиты
 
@@ -92,9 +99,22 @@ go build -trimpath -o bin/cio ./cmd/cio
 3. Влить изменения в `main` и поставить аннотированный тег: `git tag -a cio-vX.Y.Z -m "cio X.Y.Z"`.
 4. Отправить тег: `git push origin cio-vX.Y.Z`.
 5. Workflow `.github/workflows/release.yml` соберёт бинари, создаст GitHub Release
-   (`--generate-notes`) и опубликует образ в GitHub Packages.
+   (`--generate-notes`), приложит SBOM и attestation сборки и опубликует образ в GitHub Packages
+   (SBOM, provenance, подпись cosign). Тег `latest` обновляют только стабильные версии:
+   тег с суффиксом (`0.2.0-rc.1`) его не двигает.
 6. Проверить Release (артефакты и `SHA256SUMS`) и пакет: `Packages` → `cio` — видимость
    (public/private) и наличие тега `ghcr.io/devops-spb-ru/cio:X.Y.Z`.
+7. Проверить подпись и attestation (нужны `cosign` и `gh`):
+
+   ```bash
+   cosign verify ghcr.io/devops-spb-ru/cio:X.Y.Z \
+     --certificate-identity-regexp '^https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/' \
+     --certificate-oidc-issuer https://token.actions.githubusercontent.com
+   gh attestation verify cio-linux-amd64 --repo DevOps-spb-ru/DevOps-Engineer-Tools
+   ```
+
+8. Убедиться, что образ запускается от непривилегированного пользователя:
+   `docker image inspect ghcr.io/devops-spb-ru/cio:X.Y.Z --format '{{.Config.User}}'` → `cio`.
 
 ### Публикация образа (GitHub Packages → Containers)
 
@@ -125,5 +145,10 @@ docker push ghcr.io/devops-spb-ru/cio:0.1.0
 
 ## Безопасность
 
+- Порядок сообщения об уязвимостях и поддерживаемые версии — в [SECURITY.md](SECURITY.md);
+  приватный отчёт открывается во вкладке *Security* → *Report a vulnerability*.
 - Секреты, токены и пароли не коммитятся: ни в код, ни в конфиги, ни в документацию.
+- Сторонние экшены в workflows фиксируются по SHA; обновления предлагает Dependabot.
 - В отчётах утилиты секреты маскируются; если нашли обратное — это баг, заводите issue.
+- Образ `cio` запускается без прав root, доступ к `docker.sock` выдаётся группой сокета
+  (`--group-add`, см. README инструмента).

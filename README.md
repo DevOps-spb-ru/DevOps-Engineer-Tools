@@ -13,7 +13,7 @@
 
 | Компонент | Версия | Зачем |
 | --- | --- | --- |
-| Go | 1.25+ | сборка и тесты утилит на Go |
+| Go | 1.25.14+ | сборка и тесты утилит на Go (минимальный патч зафиксирован в `go.mod`) |
 | Docker Engine | 24+ (проверено на 29.8.0) | доступ к Docker API: образы, история слоёв |
 | Trivy | 0.74+ или доступный Docker (образ `aquasec/trivy`) | поиск уязвимостей; при отсутствии бинаря утилита запускает контейнер |
 
@@ -45,12 +45,28 @@ make lint
 - Локальные правила для AI-ассистента лежат в `.clinerules/` — каталог намеренно исключён из Git
   (см. `.gitignore`), поэтому в репозитории его нет.
 
-## CI
+## CI и безопасность
 
-GitHub Actions (`.github/workflows`): линт, тесты, сборка, сборка образа и его сканирование Trivy.
+GitHub Actions (`.github/workflows`):
+
+| Workflow | Что проверяет |
+| --- | --- |
+| `ci.yml` | линт (`golangci-lint` с правилами безопасности), тесты с покрытием, `govulncheck`, сборка бинаря и образа |
+| `trivy-scan.yml` | уязвимости, секреты и конфигурацию образа и файловой системы; находки CRITICAL/HIGH роняют прогон, отчёты уходят в GitHub Security |
+| `codeql.yml` | статический анализ Go-кода (CodeQL), отчёты — в GitHub Security |
+
+В `.trivyignore` лежат исключения на уязвимости **встроенного в образ сканера** Trivy: каждое
+с указанием срока годности (`exp`), после которого «ворота» снова падают и список нужно перепроверить.
+Код `cio` и базовый образ проверяются без исключений.
+
+Сторонние экшены закреплены по SHA, обновления приходят через Dependabot (`.github/dependabot.yml`):
+модули Go, GitHub Actions и образы из `Dockerfile`.
+
 Релиз — по тегу `cio-vX.Y.Z` (`.github/workflows/release.yml`): бинари для linux/amd64, linux/arm64,
-darwin/arm64 и windows/amd64, GitHub Release и публикация образа `ghcr.io/devops-spb-ru/cio`.
-Версионирование, чеклист релиза и публикация образа — в [CONTRIBUTING.md](CONTRIBUTING.md).
+darwin/arm64 и windows/amd64, GitHub Release с `SHA256SUMS`, SBOM в формате CycloneDX и attestation сборки,
+образ `ghcr.io/devops-spb-ru/cio` с SBOM, provenance и подписью cosign (keyless).
+Версионирование, чеклист релиза и публикация образа — в [CONTRIBUTING.md](CONTRIBUTING.md),
+порядок сообщения об уязвимостях — в [SECURITY.md](SECURITY.md).
 
 ## Лицензия
 
