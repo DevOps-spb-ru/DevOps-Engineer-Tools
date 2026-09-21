@@ -2,19 +2,52 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версионирование — [SemVer](https://semver.org/lang/ru/).
 
-## [Unreleased]
+## [0.2.0] - 2026-09-21
+
+Усиление безопасности и качества после аудита 0.1.0: фиксация версий, ворота в CI,
+сканирование и подпись артефактов, тесты на непокрытые участки.
 
 ### Add
 
-- версия сборки в самом бинаре: `cio --version` печатает версию, коммит и дату (подставляются через
-  `-ldflags` в `Makefile`, CI и релизном workflow), Docker-образ получил OCI-метки
-  `org.opencontainers.image.*`;
-- релизный workflow `.github/workflows/release.yml`: по тегу `cio-vX.Y.Z` собираются бинари для
-  linux/amd64, linux/arm64, darwin/arm64 и windows/amd64, создаётся GitHub Release с `SHA256SUMS`
-  и публикуется образ `ghcr.io/devops-spb-ru/cio`;
-- в README утилиты — разделы «Зачем это нужно», «Преимущества и отличия» и «Интеграция в CI»
-  с примерами для GitHub Actions, GitLab CI и Jenkins;
-- в `CONTRIBUTING.md` — раздел о версионировании, чеклисте релиза и публикации образа.
+- `.github/dependabot.yml`: автоматические обновления модулей Go, GitHub Actions и образов из `Dockerfile`
+  (минорные и патч-обновления идут группой, обновления безопасности — отдельными PR);
+- `.github/workflows/codeql.yml`: статический анализ Go-кода с загрузкой отчётов в GitHub Security;
+- `SECURITY.md`: политика раскрытия уязвимостей, поддерживаемые версии и область ответственности;
+- CI: job `govulncheck` (достижимые уязвимости зависимостей), `concurrency` и `timeout-minutes`
+  во всех workflow: устаревшие прогоны отменяются, зависшие job'ы не занимают минуты билд-агента;
+- релиз: SBOM бинарей в формате CycloneDX, attestation сборки (`actions/attest-build-provenance`),
+  SBOM и provenance самого образа (`--sbom`, `--provenance`), подпись образа cosign в keyless-режиме;
+- fuzz-тесты `FuzzParse` (разбор отчёта Trivy) и `FuzzParseSize` (пороги размера слоёв);
+- тесты: преобразование ответов Docker API, права файла отчёта, форматы вывода и значения по умолчанию
+  флагов CLI. Покрытие: `internal/dockerclient` 42.9% → 87.5%, `cmd/cio` 54.3% → 63.2%,
+  `internal/trivy` 79.5% → 81.1%.
+
+### Изменилось
+
+- сторонние GitHub Actions закреплены по SHA (обновляет Dependabot), `checkout` выполняется
+  с `persist-credentials: false`, у релизного job отключён кэш модулей Go, из `run`-блока логина
+  в GHCR убраны подстановки `github.*` (находка zizmor: template-injection);
+- `trivy-scan.yml` стал «воротами»: сканируются образ и файловая система проекта (уязвимости,
+  секреты, конфигурация), находки уровня CRITICAL/HIGH роняют прогон, отчёты по-прежнему
+  загружаются в GitHub Security;
+- образ `cio` фиксирует версию Trivy (`--build-arg TRIVY_IMAGE`, по умолчанию `aquasec/trivy:0.74.0`)
+  вместо `:latest`; то же значение использует docker-fallback в CLI (`--trivy-image`);
+- образ запускается от непривилегированного пользователя `cio`, кэш базы Trivy перенесён в
+  `/home/cio/.cache/trivy` (`TRIVY_CACHE_DIR`), добавлен `HEALTHCHECK`; доступ к `docker.sock`
+  выдаётся группой сокета (`--group-add`);
+- в `golangci-lint` включены правила безопасности и качества: `gosec`, `noctx`, `exhaustive`,
+  `unparam`, `dupl`, `gocognit`;
+- тег `latest` в GHCR обновляется только стабильными релизами: предрелизные теги его не двигают;
+- `.trivyignore`: исключения только для уязвимостей встроенного в образ сканера Trivy, каждое
+  со сроком годности — после даты `exp` «ворота» снова падают, пока список не перепроверят.
+
+### Исправлено
+
+- файл отчёта (`--output`) создаётся с правами `0600`: в отчёте бывают команды сборки образа
+  и данные сканирования, читать его посторонним незачем;
+- слишком большое значение `--min-layer-size`/`--huge-layer-size` больше не превращается
+  в отрицательный порог из-за переполнения `int64` — теперь это ошибка (нашёл `FuzzParseSize`);
+- `golang.org/x/sys` обновлён с `v0.33.0` до `v0.45.0`: закрыта CVE-2026-39824.
 
 ## [0.1.0] - 2026-09-21
 
@@ -59,5 +92,5 @@
 - Размер слоя берётся из метаданных Docker, а не из распакованного файлового дерева.
 - Trivy требует доступа к сети для обновления базы уязвимостей; без сети отчёт по слоям всё равно строится.
 
-[Unreleased]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/compare/cio-v0.1.0...HEAD
+[0.2.0]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/compare/cio-v0.1.0...cio-v0.2.0
 [cio-v0.1.0]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/releases/tag/cio-v0.1.0
