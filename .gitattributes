@@ -1,0 +1,23 @@
+# Нормализация переводов строк, чтобы CRLF/LF не «прыгали» между средами.
+# Текстовые файлы хранятся в репозитории с LF, markdown — выгружается как CRLF
+# (см. .clinerules/maintenance.md).
+
+* text=auto
+
+# Служебные конфиги — всегда LF, иначе diff и проверки зависят от ОС.
+.editorconfig text eol=lf
+.gitattributes text eol=lf
+.gitignore text eol=lf
+.dockerignore text eol=lf
+
+*.go text eol=lf
+*.mod text eol=lf
+*.sum text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.sh text eol=lf
+Dockerfile text eol=lf
+Makefile text eol=lf
+*.ps1 text eol=crlf
+
+*.md text eol=crlf
