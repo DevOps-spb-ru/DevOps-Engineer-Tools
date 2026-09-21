@@ -1,8 +1,36 @@
 # CHANGELOG
 
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версионирование — [SemVer](https://semver.org/lang/ru/).
+Версии у инструментов независимые, поэтому в заголовке раздела указан инструмент: `cio 0.2.0`, `sqlbrc 0.1.0`.
 
-## [0.2.0] - 2026-09-21
+## [Unreleased]
+
+Готовится первый выпуск `sqlbrc` — `0.1.0`: проверка готовности сервера, конфигурация и утилиты PostgreSQL.
+
+### Add
+
+- `SQL backup restore clone` (`sqlbrc`) — сервис для баз PostgreSQL 15 на одном сервере. В 0.1.0:
+  - команда `doctor`: проверки конфига, утилит PostgreSQL, правила sudoers, прав и каталогов,
+    свободного места, локалей, AppArmor, юнита systemd, веб-доступа, ролей и свежести бэкапов
+    с уровнями `ok`/`warn`/`error`, подсказкой к каждой находке и кодом возврата 1 при ошибках;
+  - форматы отчёта `table` и `json` (`--format`), журнал в `text`/`json` (`--log-format`);
+  - конфигурация из YAML с переопределением переменными окружения `SQLBRC_*` (адрес, каталоги,
+    пороги, TLS, уровень журнала) и проверкой значений при загрузке;
+  - работа с утилитами PostgreSQL 15 через `sudo -n -u postgres`: пароли не хранятся, подключение
+    идёт через локальный сокет, шаблон обслуживаемых баз (`databases.pattern`) задаёт список защищённых имён;
+  - сборка и проверки: `Makefile`, `.golangci.yml`, юнит-тесты и fuzz-цели на разбор имён баз
+    и вывода утилит, пример конфига `deploy/config.example.yaml`.
+- CI: `ci.yml` собирает и проверяет оба инструмента (`cio` и `sqlbrc`: линт, `govulncheck`, тесты, сборка).
+- Документация: `SQL backup restore clone/README.md`; корневой `README.md` описывает оба инструмента.
+
+### Известные ограничения
+
+- В 0.1.0 доступны команды `doctor` и `version`: бэкап, восстановление, клонирование, каталог бэкапов
+  с политикой хранения, веб-интерфейс и API — в 0.2.0.
+- PITR и инкрементальные бэкапы не поддерживаются: план — логический дамп `pg_dump --format custom`.
+- Сервис рассчитан на один сервер (PostgreSQL и каталог бэкапов рядом), подключение через локальный сокет.
+
+## [cio 0.2.0] - 2026-09-21
 
 Усиление безопасности и качества после аудита 0.1.0: фиксация версий, ворота в CI,
 сканирование и подпись артефактов, тесты на непокрытые участки.
@@ -59,7 +87,7 @@
   `crypto/x509`, `net/http`, `net/url`, `net/textproto`, `encoding/asn1`), которые находил
   `govulncheck` на тулчейне 1.25.4.
 
-## [0.1.0] - 2026-09-21
+## [cio 0.1.0] - 2026-09-21
 
 ### Add
 
@@ -102,5 +130,6 @@
 - Размер слоя берётся из метаданных Docker, а не из распакованного файлового дерева.
 - Trivy требует доступа к сети для обновления базы уязвимостей; без сети отчёт по слоям всё равно строится.
 
-[0.2.0]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/compare/cio-v0.1.0...cio-v0.2.0
-[cio-v0.1.0]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/releases/tag/cio-v0.1.0
+[Unreleased]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/compare/cio-v0.2.0...HEAD
+[cio 0.2.0]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/compare/cio-v0.1.0...cio-v0.2.0
+[cio 0.1.0]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/releases/tag/cio-v0.1.0
