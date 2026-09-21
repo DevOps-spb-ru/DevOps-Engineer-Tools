@@ -14,6 +14,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Переменные версии заполняются при сборке через -ldflags:
+//
+//	go build -ldflags "-X main.version=0.1.0 -X main.commit=abc1234 -X main.date=2026-09-21"
+//
+// Значения по умолчанию используются при сборке из исходников без флагов,
+// поэтому `cio --version` работает всегда (см. Makefile и .github/workflows/release.yml).
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
+// versionString возвращает строку для флага --version.
+func versionString() string {
+	return fmt.Sprintf("%s (commit %s, сборка %s)", version, commit, date)
+}
+
 // codedError позволяет вернуть конкретный код возврата.
 type codedError struct {
 	code int
@@ -70,6 +87,8 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	root.Version = versionString()
+	root.SetVersionTemplate("cio {{.Version}}\n")
 	root.SetOut(stdout)
 	root.SetErr(stderr)
 	root.AddCommand(newAnalyzeCommand())

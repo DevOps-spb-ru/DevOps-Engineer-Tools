@@ -30,6 +30,22 @@ func TestRunHelp(t *testing.T) {
 	}
 }
 
+func TestRunVersion(t *testing.T) {
+	code, stdout, stderr := execute(t, "--version")
+	if code != 0 {
+		t.Fatalf("код возврата = %d, ожидался 0 (stderr: %s)", code, stderr)
+	}
+	// Значения по умолчанию задаются в main.go; при сборке с -ldflags подставляется версия тега.
+	for _, want := range []string{version, commit, date} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("в выводе --version нет %q:\n%s", want, stdout)
+		}
+	}
+	if !strings.HasPrefix(stdout, "cio ") {
+		t.Errorf("вывод --version должен начинаться с имени утилиты:\n%s", stdout)
+	}
+}
+
 func TestRunRejectsInvalidInput(t *testing.T) {
 	tests := []struct {
 		name     string

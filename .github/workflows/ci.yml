@@ -68,7 +68,8 @@ jobs:
       - name: Собрать cio
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          go build -trimpath -ldflags="-s -w" -o bin/cio ./cmd/cio
+          go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_SHA::7}" -o bin/cio ./cmd/cio
+          ./bin/cio --version
           ./bin/cio --help
       - uses: actions/upload-artifact@v7
         with:
@@ -90,5 +91,11 @@ jobs:
           push: false
           load: true
           tags: cio:ci
+          build-args: |
+            VERSION=dev
+            REVISION=${{ github.sha }}
       - name: Проверить образ
-        run: docker run --rm cio:ci --help
+        run: |
+          docker run --rm cio:ci --version
+          docker run --rm cio:ci --help
+          docker image inspect cio:ci --format '{{index .Config.Labels "org.opencontainers.image.source"}}'
