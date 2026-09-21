@@ -360,7 +360,7 @@ func checkUnit(report *Report, opts Options) {
 	report.add("systemd-unit", LevelWarn,
 		fmt.Sprintf("юнит systemd не найден (%s): сервис запущен вручную или из исходников",
 			strings.Join(opts.UnitPaths, ", ")),
-		"установите юнит из deploy/systemd и включите его: systemctl enable --now sqlbrc")
+		"в 0.2.0 юнит в поставку не входит: добавьте его сами и включите — systemctl enable --now sqlbrc")
 }
 
 // checkWeb проверяет безопасность веб-интерфейса. Интерфейс слушает LAN без
@@ -384,7 +384,7 @@ func checkWeb(report *Report, opts Options) {
 		report.add("web-security", LevelOK, details+": адрес доступен только с сервера", "")
 	case cfg.Server.AllowInsecure:
 		report.add("web-security", LevelWarn, details+": трафик идёт без шифрования",
-			"ограничьте подсеть в nftables (deploy/nftables/sqlbrc.nft) или настройте server.tls")
+			"ограничьте доступ к порту на межсетевом экране (nftables) или настройте server.tls")
 	default:
 		report.add("web-security", LevelError, details+": интерфейс слушает не loopback без TLS",
 			"настройте server.tls или осознанно включите server.allow_insecure")
@@ -437,7 +437,7 @@ func checkRetention(ctx context.Context, report *Report, opts Options) {
 		report.add("retention", LevelWarn,
 			fmt.Sprintf("нет свежих бэкапов (%d из %d баз, порог %d дней): %s",
 				len(stale), len(managed), opts.Cfg.Storage.KeepDays, strings.Join(stale, ", ")),
-			"снимите бэкап вручную (sqlbrc backup --db <имя>) или включите таймер бэкапов (deploy/systemd)")
+			"снимите бэкап вручную (sqlbrc backup --db <имя>) или поставьте команду в cron: таймер бэкапов появится в 0.3.0")
 		return
 	}
 	report.add("retention", LevelOK,

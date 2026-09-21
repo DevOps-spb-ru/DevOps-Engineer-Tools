@@ -8,7 +8,7 @@
 | Инструмент | Что делает | Стек | Версия |
 | --- | --- | --- | --- |
 | [Container image optimizer](Container%20image%20optimizer/README.md) (`cio`) | Анализирует Docker-образы: размер слоёв, устаревшие пакеты и уязвимости (Trivy), рекомендации по уменьшению размера и multi-stage сборке | Go + Docker Engine API + Trivy | 0.2.0 |
-| [SQL backup, restore and clone](SQL%20backup%20restore%20clone/README.md) (`sqlbrc`) | Бэкап, восстановление и клонирование баз PostgreSQL: каталог бэкапов с политикой хранения и проверка готовности сервера (`doctor`). Операции, очередь задач, веб-интерфейс и API — 0.2.0 | Go + утилиты PostgreSQL 15 | 0.1.0 |
+| [SQL backup, restore and clone](SQL%20backup%20restore%20clone/README.md) (`sqlbrc`) | Бэкап, восстановление и клонирование баз PostgreSQL: каталог бэкапов с политикой хранения, очередь задач с журналом и проверка готовности сервера (`doctor`). Веб-интерфейс, API и поставка в контейнере — 0.3.0 | Go + утилиты PostgreSQL 15 | 0.2.0 |
 
 История изменений — в `CHANGELOG.md` каждого инструмента: [cio](Container%20image%20optimizer/CHANGELOG.md),
 [sqlbrc](SQL%20backup%20restore%20clone/CHANGELOG.md). Формат — Keep a Changelog, нумерация — SemVer.
@@ -81,8 +81,8 @@ GitHub Actions (`.github/workflows`):
 Схема тегов — `<инструмент>-vX.Y.Z`. Сейчас настроен релиз `cio` (`.github/workflows/release.yml`, тег
 `cio-vX.Y.Z`): бинари для linux/amd64, linux/arm64, darwin/arm64 и windows/amd64, GitHub Release
 с `SHA256SUMS`, SBOM в формате CycloneDX и attestation сборки, образ `ghcr.io/devops-spb-ru/cio` с SBOM,
-provenance и подписью cosign (keyless). Для `sqlbrc` релизный workflow появится вместе с операциями
-бэкапа и восстановления (0.2.0).
+provenance и подписью cosign (keyless). Для `sqlbrc` релизный workflow (бинари, образ) появится
+в 0.3.0 вместе с веб-интерфейсом и поставкой в контейнере.
 Версионирование, чеклист релиза и публикация образа — в [CONTRIBUTING.md](CONTRIBUTING.md),
 порядок сообщения об уязвимостях — в [SECURITY.md](SECURITY.md).
 
