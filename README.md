@@ -67,8 +67,8 @@ GitHub Actions (`.github/workflows`):
 
 | Workflow | Что проверяет |
 | --- | --- |
-| `ci.yml` | для каждого инструмента (`cio` и `sqlbrc`): линт (`golangci-lint` с правилами безопасности), достижимые уязвимости зависимостей (`govulncheck`), тесты (`go vet`, `go test -race`, покрытие в артефакте) и сборка бинаря; отдельный job собирает образ и проверяет, что он запускается под непривилегированным пользователем `cio` |
-| `trivy-scan.yml` | уязвимости, секреты и конфигурацию образа `cio` и файловой системы каждого инструмента (`cio`, `sqlbrc`); находки CRITICAL/HIGH роняют прогон, отчёты уходят в GitHub Security |
+| `ci.yml` | для каждого инструмента (`cio` и `sqlbrc`): линт (`golangci-lint` с правилами безопасности), достижимые уязвимости зависимостей (`govulncheck`), тесты (`go vet`, `go test -race`, покрытие в артефакте) и сборка бинаря; отдельный job собирает образ каждого инструмента и проверяет, что он запускается под непривилегированным пользователем (`cio`, `sqlbrc`) |
+| `trivy-scan.yml` | уязвимости, секреты и конфигурацию образов обоих инструментов (`cio`, `sqlbrc`) и их файловой системы; находки CRITICAL/HIGH роняют прогон, отчёты уходят в GitHub Security |
 | `codeql.yml` | статический анализ Go-кода обоих модулей (`cio`, `sqlbrc`), отчёты — в GitHub Security |
 
 В `.trivyignore` лежат исключения на уязвимости **встроенного в образ сканера** Trivy: каждое
@@ -81,9 +81,9 @@ GitHub Actions (`.github/workflows`):
 Схема тегов — `<инструмент>-vX.Y.Z`. `.github/workflows/release.yml` запускается по тегам `cio-vX.Y.Z`
 и `sqlbrc-vX.Y.Z`; общая часть — сборка бинарей (linux/amd64, linux/arm64, darwin/arm64,
 windows/amd64), `SHA256SUMS`, SBOM в формате CycloneDX, attestation сборки и GitHub Release — вынесена
-в вызываемый workflow `.github/workflows/release-binaries.yml`. Образ `ghcr.io/devops-spb-ru/cio`
-с SBOM, provenance и подписью cosign (keyless) публикуется по тегу `cio-vX.Y.Z`: у `sqlbrc` образа
-пока нет, поставка в контейнере появится в 0.3.0 вместе с веб-интерфейсом.
+в вызываемый workflow `.github/workflows/release-binaries.yml`, а публикация образа в GitHub Packages
+(сборка для linux/amd64 и linux/arm64, `--sbom`, `--provenance`, подпись cosign в keyless-режиме) —
+в `.github/workflows/release-image.yml`: `ghcr.io/devops-spb-ru/cio` и `ghcr.io/devops-spb-ru/sqlbrc`.
 Версионирование, чеклист релиза и публикация образа — в [CONTRIBUTING.md](CONTRIBUTING.md),
 порядок сообщения об уязвимостях — в [SECURITY.md](SECURITY.md).
 

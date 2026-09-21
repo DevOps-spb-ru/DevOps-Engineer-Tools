@@ -6,7 +6,7 @@
 | --- | --- |
 | `Container image optimizer/` | утилита `cio` на Go: CLI, правила анализа, Docker-сборка |
 | `SQL backup restore clone/` | сервис `sqlbrc` на Go: бэкап, восстановление и клонирование баз PostgreSQL |
-| `.github/workflows/` | CI: линт, тесты, сборка, CodeQL и сканирование Trivy; сборка образа — только у `cio` |
+| `.github/workflows/` | CI: линт, тесты, сборка, CodeQL, сканирование Trivy и сборка образов обоих инструментов |
 | `.work/` | локальные вспомогательные скрипты (в Git не попадают) |
 | `.clinerules/` | локальные правила и справка для AI-ассистента (в Git не попадают) |
 
@@ -80,8 +80,8 @@ go build -trimpath -o bin/sqlbrc.exe ./cmd/sqlbrc   # для sqlbrc (.exe — т
 
 - Ветка от `main`: `feature/<краткое-имя>` или `fix/<краткое-имя>`.
 - PR заполняется по шаблону `.github/PULL_REQUEST_TEMPLATE.md`; в описании — что проверено и как.
-- PR должен проходить CI: `Линт`, `Уязвимости зависимостей`, `Тесты` и `Сборка` (для обоих
-  инструментов), а для `cio` — ещё и `Docker-образ`.
+- PR должен проходить CI: `Линт`, `Уязвимости зависимостей`, `Тесты`, `Сборка` и `Docker-образ`
+  (для обоих инструментов).
 - Слияние — только после зелёного CI и ревью.
 
 ## Версионирование и релизы
@@ -122,12 +122,12 @@ go build -trimpath -o bin/sqlbrc.exe ./cmd/sqlbrc   # для sqlbrc (.exe — т
    `git tag -a <инструмент>-vX.Y.Z -m "<инструмент> X.Y.Z"`.
 4. Отправить тег: `git push origin <инструмент>-vX.Y.Z`.
 5. Workflow `.github/workflows/release.yml` соберёт бинари инструмента (общие шаги вынесены
-   в вызываемый `.github/workflows/release-binaries.yml`), создаст GitHub Release
-   (`--generate-notes`) и приложит SBOM и attestation сборки; для тега `cio-vX.Y.Z` дополнительно
-   публикуется образ в GitHub Packages (SBOM, provenance, подпись cosign). Тег `latest` обновляют
+   в вызываемые `.github/workflows/release-binaries.yml` и `.github/workflows/release-image.yml`),
+   создаст GitHub Release (`--generate-notes`), приложит SBOM и attestation сборки и опубликует образ
+   в GitHub Packages (SBOM, provenance, подпись cosign в keyless-режиме). Тег `latest` обновляют
    только стабильные версии: тег с суффиксом (`0.2.0-rc.1`) его не двигает.
-6. Проверить Release (артефакты и `SHA256SUMS`) и пакет: `Packages` → `cio` — видимость
-   (public/private) и наличие тега `ghcr.io/devops-spb-ru/cio:X.Y.Z`.
+6. Проверить Release (артефакты и `SHA256SUMS`) и пакет: `Packages` → `cio` или `sqlbrc` — видимость
+   (public/private) и наличие тега `ghcr.io/devops-spb-ru/<инструмент>:X.Y.Z`.
 7. Проверить подпись и attestation (нужны `cosign` и `gh`):
 
    ```bash
@@ -140,8 +140,9 @@ go build -trimpath -o bin/sqlbrc.exe ./cmd/sqlbrc   # для sqlbrc (.exe — т
 8. Убедиться, что образ запускается от непривилегированного пользователя:
    `docker image inspect ghcr.io/devops-spb-ru/cio:X.Y.Z --format '{{.Config.User}}'` → `cio`.
 
-Релизный workflow настроен пока только для `cio`: для `sqlbrc` он появится вместе с операциями
-бэкапа и восстановления (0.2.0), до тех пор к нему шаги 5–8 не применяются.
+Релизный workflow настроен для обоих инструментов: по тегу `cio-vX.Y.Z` или `sqlbrc-vX.Y.Z` собираются
+бинари и публикуется образ соответствующего инструмента (`ghcr.io/devops-spb-ru/cio`,
+`ghcr.io/devops-spb-ru/sqlbrc`), поэтому шаги 5–8 применяются к обоим.
 
 ### Публикация образа (GitHub Packages → Containers)
 

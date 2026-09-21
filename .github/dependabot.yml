@@ -94,3 +94,18 @@ updates:
     labels:
       - dependencies
       - docker
+
+  # Образы sqlbrc: golang-alpine (сборка), alpine (runtime), postgresql15-client.
+  - package-ecosystem: docker
+    directory: "/SQL backup restore clone"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:30"
+      timezone: Europe/Moscow
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "Deps: docker"
+    labels:
+      - dependencies
+      - docker
