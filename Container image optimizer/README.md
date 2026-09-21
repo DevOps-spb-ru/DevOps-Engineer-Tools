@@ -272,7 +272,7 @@ Trivy запускается отдельным процессом и не на�
 ```powershell
 $env:TRIVY_USERNAME = 'ci-reader'
 $env:TRIVY_PASSWORD = Read-Host 'пароль реестра'
-cio analyze docker-hub.iitdgroup.ru/finsynapse/back:5.4.1
+cio analyze registry.example.com/team/app:5.4.1
 ```
 
 Переменные `TRIVY_USERNAME`, `TRIVY_PASSWORD` и `TRIVY_INSECURE` передаются в контейнер **по имени**:
