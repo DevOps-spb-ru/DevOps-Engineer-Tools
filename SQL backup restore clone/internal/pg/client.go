@@ -361,7 +361,7 @@ func (c *Client) ListDatabases(ctx context.Context) ([]Database, error) {
 			SizeBytes:   parseInt64(row.Field(6)),
 			AllowConn:   parseBool(row.Field(7)),
 			IsTemplate:  parseBool(row.Field(8)),
-			Connections: int(parseInt64(row.Field(9))),
+			Connections: parseCount(row.Field(9)),
 		})
 	}
 	return databases, nil
@@ -396,10 +396,22 @@ func parseBool(value string) bool {
 }
 
 // parseInt64 переводит значение в число; мусор трактуется как 0, потому что
-// размер БД и число подключений — справочные поля.
+// размер БД — справочное поле.
 func parseInt64(value string) int64 {
 	parsed, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
 	if err != nil {
+		return 0
+	}
+	return parsed
+}
+
+// parseCount переводит значение из psql в счётчик (число подключений, строк):
+// мусор, отрицательное число и переполнение int трактуются как 0. Сужать int64
+// до int нельзя: значение приходит извне, и обрезание дало бы бессмысленный
+// счётчик вместо отказа.
+func parseCount(value string) int {
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || parsed < 0 {
 		return 0
 	}
 	return parsed

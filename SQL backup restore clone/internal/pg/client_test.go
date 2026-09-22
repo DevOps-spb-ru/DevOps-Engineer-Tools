@@ -257,3 +257,31 @@ func TestClientExecLogsStderr(t *testing.T) {
 		t.Errorf("без stderr вывод не попал в журнал: %q", log.String())
 	}
 }
+
+// TestParseCount проверяет разбор счётчика из вывода psql: число приходит извне,
+// поэтому значение вне диапазона int трактуется как 0, а не обрезается сужением
+// int64 до int (CodeQL: go/incorrect-integer-conversion).
+func TestParseCount(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  int
+	}{
+		{name: "ноль", input: "0", want: 0},
+		{name: "подключения", input: "3", want: 3},
+		{name: "пробелы вокруг числа", input: " 12 ", want: 12},
+		{name: "отрицательное", input: "-1", want: 0},
+		{name: "пустой ввод", input: "", want: 0},
+		{name: "не число", input: "мусор", want: 0},
+		{name: "дробное", input: "1e3", want: 0},
+		{name: "переполнение int64", input: "99999999999999999999999", want: 0},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := parseCount(test.input); got != test.want {
+				t.Errorf("parseCount(%q) = %d, ожидалось %d", test.input, got, test.want)
+			}
+		})
+	}
+}
