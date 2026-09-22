@@ -7,7 +7,7 @@
 # права 0600). sudo в образ не ставится — он в этом режиме не нужен.
 #
 # Версии базовых образов закреплены: обновляет их Dependabot (.github/dependabot.yml).
-ARG GO_IMAGE=golang:1.25.14-alpine3.23
+ARG GO_IMAGE=golang:1.26.8-alpine3.23
 ARG RUNTIME_IMAGE=alpine:3.22
 
 FROM ${GO_IMAGE} AS build

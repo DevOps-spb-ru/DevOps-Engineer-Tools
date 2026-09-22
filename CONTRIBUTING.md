@@ -14,7 +14,7 @@
 
 | Компонент | Версия | Зачем |
 | --- | --- | --- |
-| Go | 1.25.14+ | сборка и тесты обоих инструментов (патч зафиксирован в `go.mod`) |
+| Go | 1.26.8+ | сборка и тесты обоих инструментов (патч зафиксирован в `go.mod`) |
 | Docker Engine | 24+ | `cio`: образы и история слоёв читаются через Docker API |
 | PostgreSQL | 15 | `sqlbrc`: утилиты `pg_dump`, `pg_restore`, `psql`, `pg_isready` |
 | Python 3 | 3.8+ | только для валидации workflows (`.work/validate-workflows.py`) |
@@ -45,9 +45,9 @@ go build -trimpath -o bin/sqlbrc.exe ./cmd/sqlbrc   # для sqlbrc (.exe — т
 Линт: `make lint` (нужен `golangci-lint`) или `.work/lint-docker.ps1` — тот же линтер в контейнере
 `golangci/golangci-lint` с версией, которая используется в CI.
 
-Проверка зависимостей: `go install golang.org/x/vuln/cmd/govulncheck@v1.7.0`, затем `govulncheck ./...`
+Проверка зависимостей: `go install golang.org/x/vuln/cmd/govulncheck@v1.8.0`, затем `govulncheck ./...`
 (достижимые уязвимости роняют CI). Версию держим той же, что в `.github/workflows/ci.yml`: `v1.8.0`
-требует Go ≥ 1.26, а в `go.mod` обоих инструментов объявлена 1.25.14.
+требует Go ≥ 1.26, а в `go.mod` обоих инструментов объявлена 1.26.8.
 
 Дымовая проверка на живом Docker: `.work/smoke-cio.ps1` (добавьте `-WithTrivy`, чтобы проверить сканирование).
 
