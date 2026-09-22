@@ -3,6 +3,9 @@ name: Trivy scan
 # Сканирование образа, файловой системы и Dockerfile.
 # Отчёты загружаются в GitHub Security (SARIF), а находки уровня CRITICAL/HIGH
 # роняют прогон: это «ворота», а не просто отчёт.
+# В SARIF попадают те же уровни, что видят «ворота» (limit-severities-for-sarif):
+# иначе в Security копились бы находки ниже уровня ворот (LOW/UNKNOWN), которых
+# сам прогон не замечает, и отчёт расходился бы с проверкой.
 on:
   push:
     branches: [main]
@@ -60,6 +63,10 @@ jobs:
           output: ${{ matrix.sarif }}
           severity: CRITICAL,HIGH
           ignore-unfixed: true
+          # Формат SARIF по умолчанию игнорирует severity: action снимает TRIVY_SEVERITY
+          # и кладёт в отчёт все находки, поэтому в GitHub Security попадало то, чего
+          # «ворота» не видят. Вход удерживает уровни отчёта теми же, что у «ворот».
+          limit-severities-for-sarif: true
           exit-code: "0"
       - name: Загрузить отчёт в GitHub Security
         # В PR из форка токен не имеет права писать в Security: загрузку пропускаем,
@@ -123,6 +130,10 @@ jobs:
           format: sarif
           output: trivy-fs.sarif
           severity: CRITICAL,HIGH
+          # Как и у «ворот» ниже, в отчёт не попадает то, для чего ещё нет исправления;
+          # limit-severities-for-sarif удерживает уровни отчёта теми же, что у «ворот».
+          ignore-unfixed: true
+          limit-severities-for-sarif: true
           exit-code: "0"
       - name: Загрузить отчёт в GitHub Security
         if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)

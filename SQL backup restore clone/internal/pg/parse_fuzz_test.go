@@ -1,6 +1,10 @@
 package pg
 
-import "testing"
+import (
+	"strconv"
+	"strings"
+	"testing"
+)
 
 // FuzzParsePgVersion проверяет разбор версий: строка приходит из вывода внешней
 // утилиты PostgreSQL, поэтому паник быть не должно ни на каком вводе.
@@ -81,6 +85,36 @@ func FuzzParseRestoreList(f *testing.F) {
 		}
 		if summary := SummarizeTOC(entries); len(summary) > len(entries) {
 			t.Errorf("сводка длиннее списка: %v при %d объектах", summary, len(entries))
+		}
+	})
+}
+
+// FuzzParseCount проверяет разбор счётчика из вывода psql: значение приходит извне,
+// поэтому результат обязан быть неотрицательным, а корректное число — вернуться без
+// искажений: сужение int64 до int скрыло бы переполнение и дало бессмысленный счётчик.
+func FuzzParseCount(f *testing.F) {
+	seeds := []string{
+		"", " ", "0", "1", "3", " 12 ", "-1", "мусор", "1e3", "0x10",
+		"2147483647", "2147483648", "9223372036854775807", "99999999999999999999999",
+	}
+	for _, seed := range seeds {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, value string) {
+		count := parseCount(value)
+		if count < 0 {
+			t.Errorf("отрицательный счётчик %d для %q", count, value)
+		}
+
+		expected, err := strconv.Atoi(strings.TrimSpace(value))
+		switch {
+		case err != nil, expected < 0:
+			if count != 0 {
+				t.Errorf("некорректное значение %q дало %d, ожидался 0", value, count)
+			}
+		case count != expected:
+			t.Errorf("parseCount(%q) = %d, ожидалось %d", value, count, expected)
 		}
 	})
 }

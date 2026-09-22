@@ -80,7 +80,7 @@ func (c *Client) Sessions(ctx context.Context, database, pattern string) (int, e
 	if len(rows) == 0 {
 		return 0, nil
 	}
-	return int(parseInt64(rows[0].Field(0))), nil
+	return parseCount(rows[0].Field(0)), nil
 }
 
 // TerminateBackends завершает активные подключения к базе и возвращает их число.
@@ -97,7 +97,7 @@ func (c *Client) TerminateBackends(ctx context.Context, database, pattern string
 	if len(rows) == 0 {
 		return 0, nil
 	}
-	return int(parseInt64(rows[0].Field(0))), nil
+	return parseCount(rows[0].Field(0)), nil
 }
 
 // CreateDatabase создаёт базу с заданными параметрами.
