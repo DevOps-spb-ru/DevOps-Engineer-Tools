@@ -428,8 +428,14 @@ docker run --rm --group-add 0 -v /var/run/docker.sock:/var/run/docker.sock ghcr.
 Версия Trivy внутри образа фиксирована и переопределяется на сборке (`--build-arg TRIVY_IMAGE=...`),
 поэтому обновление сканера не меняет сборку неожиданно. Версия и ревизия исходников видны и снаружи —
 в метках `org.opencontainers.image.version` и `org.opencontainers.image.revision`
-(`docker image inspect`), и внутри — в выводе `cio --version`.
-Локальная сборка с версией: `docker build --build-arg VERSION=0.2.0 -t cio:0.2.0 .`.
+(`docker image inspect`), и внутри — в выводе `cio --version`: релизный workflow передаёт
+`--build-arg VERSION`, `REVISION` и `DATE`, поэтому в образе видны версия, коммит и дата сборки.
+Локальная сборка с теми же значениями:
+
+```bash
+docker build --build-arg VERSION=0.2.0 --build-arg REVISION=$(git rev-parse --short HEAD) \
+  --build-arg DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) -t cio:0.2.0 .
+```
 
 ## Ограничения
 

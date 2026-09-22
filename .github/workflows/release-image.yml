@@ -65,10 +65,13 @@ jobs:
           fi
           # --sbom и --provenance кладут рядом с образом attestations: видно,
           # из каких исходников и как собран образ.
+          # Дату сборки передаём так же, как в сборке бинарей: без неё бинарь
+          # в образе печатает «сборка unknown», и сверить образ с релизом нечем.
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             --build-arg VERSION="$version" \
             --build-arg REVISION="${GITHUB_SHA}" \
+            --build-arg DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --provenance=true \
             --sbom=true \
             "${tags[@]}" \
