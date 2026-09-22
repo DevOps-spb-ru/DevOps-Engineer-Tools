@@ -4,7 +4,7 @@
 нумерация версий — [SemVer](https://semver.org/lang/ru/); схема тегов (`sqlbrc-vX.Y.Z`) и порядок релиза —
 в корневом [CONTRIBUTING.md](../CONTRIBUTING.md). Указатель по всем инструментам — [../CHANGELOG.md](../CHANGELOG.md).
 
-## [Unreleased]
+## [0.4.0] - Unreleased
 
 ### Исправлено
 
@@ -175,6 +175,7 @@
 - PITR и инкрементальные бэкапы не поддерживаются: план — логический дамп `pg_dump --format custom`.
 - Сервис рассчитан на один сервер (PostgreSQL и каталог бэкапов рядом), подключение через локальный сокет.
 
+[0.4.0]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/compare/sqlbrc-v0.3.0...HEAD
 [0.3.0]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/compare/sqlbrc-v0.2.0...sqlbrc-v0.3.0
 [0.2.0]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/compare/sqlbrc-v0.1.0...sqlbrc-v0.2.0
 [0.1.0]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/releases/tag/sqlbrc-v0.1.0

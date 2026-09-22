@@ -4,7 +4,7 @@
 нумерация версий — [SemVer](https://semver.org/lang/ru/); схема тегов (`cio-vX.Y.Z`) и порядок релиза —
 в корневом [CONTRIBUTING.md](../CONTRIBUTING.md). Указатель по всем инструментам — [../CHANGELOG.md](../CHANGELOG.md).
 
-## [Unreleased]
+## [0.3.0] - Unreleased
 
 ### Исправлено
 
@@ -127,6 +127,6 @@
 - Размер слоя берётся из метаданных Docker, а не из распакованного файлового дерева.
 - Trivy требует доступа к сети для обновления базы уязвимостей; без сети отчёт по слоям всё равно строится.
 
-[Unreleased]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/compare/cio-v0.2.0...HEAD
+[0.3.0]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/compare/cio-v0.2.0...HEAD
 [0.2.0]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/compare/cio-v0.1.0...cio-v0.2.0
 [0.1.0]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/releases/tag/cio-v0.1.0
