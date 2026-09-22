@@ -1,5 +1,5 @@
 name: Баг-репорт
-description: Сообщить о проблеме в утилите, CI или документации
+description: Сообщить о проблеме в инструменте, CI или документации
 title: "[Bug]: "
 labels: ["bug"]
 body:
@@ -13,6 +13,8 @@ body:
       label: Где проблема
       options:
         - Container image optimizer (cio)
+        - SQL backup, restore and clone (sqlbrc)
+        - Новый инструмент или общая инфраструктура
         - CI / workflows
         - Документация
     validations:
@@ -21,8 +23,8 @@ body:
     id: versions
     attributes:
       label: Версии
-      description: Коммит или тег, а также версии Go, Docker и Trivy
-      placeholder: "main @ a1b2c3d, Go 1.25.14, Docker 29.8.0, Trivy 0.74.0"
+      description: Коммит или тег, версия инструмента (`cio --version`, `sqlbrc --version`) и окружение
+      placeholder: "main @ a1b2c3d, cio 0.2.0, Go 1.25.14, Docker 29.8.0, Trivy 0.74.0"
     validations:
       required: true
   - type: textarea
@@ -32,6 +34,11 @@ body:
       placeholder: |
         1. go build -o bin/cio.exe ./cmd/cio
         2. ./bin/cio.exe analyze postgres:15-alpine
+        3. ...
+
+        Для sqlbrc:
+        1. go build -o bin/sqlbrc.exe ./cmd/sqlbrc
+        2. ./bin/sqlbrc.exe doctor --config deploy/config.example.yaml
         3. ...
     validations:
       required: true
