@@ -40,6 +40,28 @@ jobs:
         with:
           go-version-file: ${{ matrix.dir }}/go.mod
           cache-dependency-path: ${{ matrix.dir }}/go.sum
+      # Версия Go живёт в двух файлах: директива go в go.mod и ARG GO_IMAGE в Dockerfile.
+      # Dependabot обновляет их разными PR (gomod и docker), а в образе сборки выключен
+      # автоподбор тулчейна (GOTOOLCHAIN=local): образ старее объявленной версии роняет
+      # сборку образа («go mod download» с кодом 1). Проверка бесплатная и падает раньше линта.
+      - name: Версия Go (go.mod ↔ Dockerfile)
+        working-directory: ${{ matrix.dir }}
+        run: |
+          declared=$(sed -n 's/^go \([0-9][0-9.]*\)$/\1/p' go.mod)
+          image=$(sed -n 's/^ARG GO_IMAGE=golang:\([0-9][0-9.]*\).*/\1/p' Dockerfile)
+          if [ -z "$declared" ] || [ -z "$image" ]; then
+            echo "::error::не удалось прочитать версию Go (go.mod: '$declared', GO_IMAGE: '$image')"
+            exit 1
+          fi
+          if [ "$declared" != "$image" ]; then
+            if [ "$(printf '%s\n%s\n' "$declared" "$image" | sort -V | head -n1)" = "$image" ]; then
+              echo "::error file=${{ matrix.dir }}/Dockerfile::образ сборки golang:$image старее объявленной в go.mod версии $declared — go mod download упадёт (в образе GOTOOLCHAIN=local)"
+              exit 1
+            fi
+            echo "::warning file=${{ matrix.dir }}/Dockerfile::go.mod объявляет go $declared, а образ сборки — golang:$image: синхронизируйте версии"
+          fi
+          echo "версия Go: go.mod $declared, образ golang:$image"
+
       - name: golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
