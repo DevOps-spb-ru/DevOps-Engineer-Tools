@@ -2,7 +2,8 @@
 
 ## Что сделано
 
-<!-- Кратко: какой инструмент/файл затронут и зачем. -->
+<!-- Кратко: какой инструмент/файл затронут и зачем. Новый инструмент — каталог и что добавлено
+     в матрицы workflow, документы и dependabot.yml (чеклист в CONTRIBUTING.md). -->
 
 ## Тип изменения
 
@@ -14,14 +15,16 @@
 
 ## Как проверено
 
-<!-- Отметьте выполненное; команды — из CONTRIBUTING.md -->
+<!-- Отметьте выполненное; команды выполняются в каталоге затронутого инструмента
+     (`Container image optimizer` или `SQL backup restore clone`); полный список — в CONTRIBUTING.md -->
 
 - [ ] `gofmt -l cmd internal` — пусто
 - [ ] `go vet ./...`
 - [ ] `go test ./... -count=1`
 - [ ] `golangci-lint run ./...` (или `.work/lint-docker.ps1`)
-- [ ] Проверка на живом Docker (`.work/smoke-cio.ps1`)
+- [ ] Проверка на живом окружении: `cio` — `.work/smoke-cio.ps1`; `sqlbrc` — `.work/smoke-container.ps1` или `.work/smoke-serve.ps1`
 - [ ] Обновлены `README.md` и `CHANGELOG.md` затронутого инструмента
+- [ ] Если затронуты CI, зависимости или документы репозитория — обновлены матрицы workflow, `SECURITY.md`, `README.md`
 - [ ] При релизе: секция `CHANGELOG.md` совпадает с тегом `<инструмент>-vX.Y.Z`
 
 ## Влияние и риски

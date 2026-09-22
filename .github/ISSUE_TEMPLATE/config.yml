@@ -2,7 +2,13 @@ blank_issues_enabled: false
 contact_links:
   - name: Правила разработки
     url: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/blob/main/CONTRIBUTING.md
-    about: Как запускать проверки, оформлять коммиты и pull request
+    about: Как запускать проверки, оформлять коммиты и pull request, как добавить новый инструмент
+  - name: Политика безопасности
+    url: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/blob/main/SECURITY.md
+    about: Поддерживаемые версии всех инструментов и порядок сообщения об уязвимостях
   - name: Документация Container image optimizer
     url: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/tree/main/Container%20image%20optimizer
     about: Флаги CLI, правила анализа и ограничения утилиты cio
+  - name: Документация SQL backup, restore and clone
+    url: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/tree/main/SQL%20backup%20restore%20clone
+    about: Команды, конфигурация, поставка и веб-интерфейс сервиса sqlbrc

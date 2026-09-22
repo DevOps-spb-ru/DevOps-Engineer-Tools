@@ -22,10 +22,11 @@
 
 ## Локальная проверка перед пушем
 
-Всё сразу (рекомендуется):
+Всё сразу (рекомендуется) — скрипт затронутого инструмента:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .work/build-and-test.ps1
+powershell -ExecutionPolicy Bypass -File .work/build-and-test.ps1         # cio
+powershell -ExecutionPolicy Bypass -File .work/build-and-test-sqlbrc.ps1  # sqlbrc
 ```
 
 По шагам (в каталоге нужного инструмента: `cd "Container image optimizer"` или
@@ -57,6 +58,9 @@ go build -trimpath -o bin/sqlbrc.exe ./cmd/sqlbrc   # для sqlbrc (.exe — т
 Проверка `sqlbrc` без живого PostgreSQL: `bin/sqlbrc doctor --config deploy/config.example.yaml` —
 отчёт по проверкам готовности сервера; код возврата 1 означает «есть ошибки», в том числе
 «на этой ОС проверить не удалось» (например, на Windows).
+
+Полная проверка поставки `sqlbrc` в контейнере (нужны Docker и compose): `.work/smoke-container.ps1` —
+образ собирается, запускается от непривилегированного пользователя и работает по `postgres.mode: tcp`.
 
 ## Definition of Done
 
@@ -106,14 +110,15 @@ go build -trimpath -o bin/sqlbrc.exe ./cmd/sqlbrc   # для sqlbrc (.exe — т
 | удаление или переименование флага, изменение формата JSON | в `0.x` — minor, начиная с `1.0.0` — major |
 
 Версия попадает в бинарь на этапе сборки (`-ldflags "-X main.version=..."`, см. `Makefile`),
-поэтому `--version` печатает версию, коммит и дату сборки (у `sqlbrc` — тем же способом, цель
-`version` в его `Makefile`), а образ `cio` получает те же значения
-в метках `org.opencontainers.image.*`.
+поэтому `--version` печатает версию, коммит и дату сборки — у обоих инструментов (цель `version`
+в `Makefile`). Образ получает те же значения build-аргументами `--build-arg VERSION`, `REVISION`
+и `DATE` (их передаёт `release-image.yml`), а `cio` — ещё и в метках `org.opencontainers.image.*`.
+Значения в образе видны в `--version` внутри контейнера: без `DATE` там было бы «сборка unknown».
 
 ### Чеклист релиза
 
 1. Убедиться, что CI на `main` зелёный: `Линт`, `Уязвимости зависимостей`, `Тесты` и `Сборка`
-   для нужного инструмента (для `cio` — ещё и `Docker-образ`).
+   для нужного инструмента, а если у него есть контейнерная поставка — ещё и `Docker-образ`.
 2. В `CHANGELOG.md` инструмента (`Container image optimizer/CHANGELOG.md` или
    `SQL backup restore clone/CHANGELOG.md`) переименовать `## [Unreleased]` в `## [X.Y.Z] - ГГГГ-ММ-ДД`
    (например, `## [0.1.0] - 2026-10-01`), сразу добавить новый пустой `## [Unreleased]`
@@ -153,7 +158,8 @@ go build -trimpath -o bin/sqlbrc.exe ./cmd/sqlbrc   # для sqlbrc (.exe — т
 
 ```bash
 echo "$TOKEN" | docker login ghcr.io -u <user> --password-stdin
-docker build --build-arg VERSION=0.1.0 --build-arg REVISION="$(git rev-parse HEAD)" \
+docker build --build-arg VERSION=0.1.0 --build-arg REVISION="$(git rev-parse --short HEAD)" \
+  --build-arg DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   -t ghcr.io/devops-spb-ru/cio:0.1.0 "Container image optimizer"
 docker push ghcr.io/devops-spb-ru/cio:0.1.0
 ```
@@ -163,26 +169,37 @@ docker push ghcr.io/devops-spb-ru/cio:0.1.0
 с репозиторием, после первого пуша зайдите в `Packages` → `Package settings` и выполните
 `Connect repository`.
 
-Образ пока публикует только `cio`: поставка `sqlbrc` в контейнере запланирована на 0.2.0.
+Образ публикуется у каждого инструмента, для которого есть поставка в контейнере: сейчас это
+`ghcr.io/devops-spb-ru/cio` и `ghcr.io/devops-spb-ru/sqlbrc` (контейнерная поставка `sqlbrc`
+появилась в 0.3.0). Инструмент без `Dockerfile` в релизном workflow образ не публикует.
 
 ## Как добавить новый инструмент
 
 1. Создайте каталог с понятным именем и `README.md` внутри; образцы структуры —
    [`Container image optimizer`](Container%20image%20optimizer/README.md) и
    [`SQL backup restore clone`](SQL%20backup%20restore%20clone/README.md).
-2. Добавьте сборочные файлы и тесты; сборочная команда и тесты должны быть воспроизводимы локально.
-3. Заведите job в `.github/workflows/ci.yml` (линт/уязвимости/тесты/сборка) с `working-directory`
-   на новый каталог; отдельные job'ы — под образ, сканирование (`trivy-scan.yml`) и статический
-   анализ (`codeql.yml`, сейчас там собирается только `cio`).
-4. Обновите таблицу инструментов в корневом `README.md`, заведите `CHANGELOG.md` в каталоге
-   инструмента (раздел `## [Unreleased]`) и строку про него в корневом `CHANGELOG.md`.
+2. Добавьте сборочные файлы (`go.mod`, `Makefile`, при контейнерной поставке — `Dockerfile`)
+   и тесты; сборочная команда и тесты должны быть воспроизводимы локально.
+3. Добавьте каталог в матрицы workflow: `ci.yml` (линт, зависимости, тесты, сборка; образ —
+   если он есть), `trivy-scan.yml` (образ и файловая система) и `codeql.yml` (анализ Go).
+   Путь к инструменту задаётся в `working-directory`, `context` и `go-version-file`.
+4. Заведите релизные job'ы в `release.yml` по образцу существующих: тег `<инструмент>-vX.Y.Z`,
+   вызов `release-binaries.yml` (а для контейнерной поставки — ещё и `release-image.yml`)
+   с параметрами `tool`, `dir` и `tag_prefix`.
+5. Обновите публичные документы: таблицу инструментов и требования в корневом `README.md`,
+   строку в корневом `CHANGELOG.md`, строку в `SECURITY.md` (поддерживаемые версии, область,
+   «вне области»), ссылку на README инструмента в `.github/ISSUE_TEMPLATE/config.yml` и варианты
+   инструмента в формах issue.
+6. Заведите `CHANGELOG.md` в каталоге инструмента (раздел `## [Unreleased]`), добавьте модуль
+   Go, а при контейнерной поставке — и образы из `Dockerfile` в `.github/dependabot.yml`.
 
 ## Безопасность
 
-- Порядок сообщения об уязвимостях и поддерживаемые версии — в [SECURITY.md](SECURITY.md);
-  приватный отчёт открывается во вкладке *Security* → *Report a vulnerability*.
+- Порядок сообщения об уязвимостях, поддерживаемые версии и область ответственности описаны
+  сразу для всех инструментов — в [SECURITY.md](SECURITY.md); приватный отчёт открывается
+  во вкладке *Security* → *Report a vulnerability*.
 - Секреты, токены и пароли не коммитятся: ни в код, ни в конфиги, ни в документацию.
 - Сторонние экшены в workflows фиксируются по SHA; обновления предлагает Dependabot.
 - В отчётах утилиты секреты маскируются; если нашли обратное — это баг, заводите issue.
-- Образ `cio` запускается без прав root, доступ к `docker.sock` выдаётся группой сокета
-  (`--group-add`, см. README инструмента).
+- Образы запускаются без прав root (`cio`, `sqlbrc`). Доступ к `docker.sock` нужен только `cio`:
+  он выдаётся группой сокета (`--group-add`, см. README инструмента).

@@ -9,7 +9,9 @@ body:
       label: Что улучшаем
       options:
         - Container image optimizer (cio)
-        - Новое правило анализа образа
+        - SQL backup, restore and clone (sqlbrc)
+        - Новый инструмент или общая инфраструктура
+        - Новое правило анализа образа (cio)
         - CI / workflows
         - Документация
     validations:
