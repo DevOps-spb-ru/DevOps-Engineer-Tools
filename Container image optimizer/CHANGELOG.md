@@ -4,7 +4,7 @@
 нумерация версий — [SemVer](https://semver.org/lang/ru/); схема тегов (`cio-vX.Y.Z`) и порядок релиза —
 в корневом [CONTRIBUTING.md](../CONTRIBUTING.md). Указатель по всем инструментам — [../CHANGELOG.md](../CHANGELOG.md).
 
-## [Unreleased]
+## [0.3.0] - Unreleased
 
 ### Исправлено
 
@@ -20,7 +20,11 @@
   в `go.mod`. Патч `1.25.14` не соответствовал требованиям зависимостей и оставлял в стандартной
   библиотеке достижимые уязвимости;
 - `govulncheck` обновлён до `v1.8.0` в CI и в документации — его модуль требует Go ≥ 1.26, что теперь
-  соответствует `go.mod`.
+  соответствует `go.mod`;
+- версия Go в `go.mod` сверяется с `ARG GO_IMAGE` из `Dockerfile` — в job `lint` (`ci.yml`) и в локальном
+  скрипте проверок. Dependabot обновляет эти файлы разными PR, а образ сборки старше объявленного
+  тулчейна роняет сборку образа с невнятной ошибкой `go mod download`: проверка падает раньше линта
+  и называет оба файла.
 
 ## [0.2.0] - 2026-09-21
 
@@ -123,6 +127,6 @@
 - Размер слоя берётся из метаданных Docker, а не из распакованного файлового дерева.
 - Trivy требует доступа к сети для обновления базы уязвимостей; без сети отчёт по слоям всё равно строится.
 
-[Unreleased]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/compare/cio-v0.2.0...HEAD
+[0.3.0]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/compare/cio-v0.2.0...HEAD
 [0.2.0]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/compare/cio-v0.1.0...cio-v0.2.0
 [0.1.0]: https://github.com/DevOps-spb-ru/DevOps-Engineer-Tools/releases/tag/cio-v0.1.0
