@@ -1,6 +1,6 @@
 module github.com/DevOps-spb-ru/DevOps-Engineer-Tools/container-image-optimizer
 
-go 1.25.14
+go 1.26.8
 
 require (
 	github.com/moby/moby/api v1.56.0
