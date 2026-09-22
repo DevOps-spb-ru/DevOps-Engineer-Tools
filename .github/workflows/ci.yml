@@ -72,9 +72,9 @@ jobs:
           # Версия зафиксирована: обновление — отдельное изменение, иначе сканер может
           # начать падать на новом наборе правил. Верхняя граница — версия Go в go.mod:
           # setup-go выставляет GOTOOLCHAIN=local, а golang.org/x/vuln@v1.8.0 требует
-          # go >= 1.26.0 (в go.mod объявлена 1.25.14), поэтому ставится v1.7.0 —
-          # её модуль требует go 1.25.0. Повышать версию — вместе с go в go.mod.
-          go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+          # go >= 1.26.0 (в go.mod объявлена 1.26.8), поэтому ставится v1.8.0.
+          # Повышать версию — вместе с go в go.mod.
+          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
           govulncheck ./...
 
   test:

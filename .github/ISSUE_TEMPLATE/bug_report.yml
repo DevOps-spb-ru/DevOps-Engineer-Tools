@@ -24,7 +24,7 @@ body:
     attributes:
       label: Версии
       description: Коммит или тег, версия инструмента (`cio --version`, `sqlbrc --version`) и окружение
-      placeholder: "main @ a1b2c3d, cio 0.2.0, Go 1.25.14, Docker 29.8.0, Trivy 0.74.0"
+      placeholder: "main @ a1b2c3d, cio 0.2.0, Go 1.26.8, Docker 29.8.0, Trivy 0.74.0"
     validations:
       required: true
   - type: textarea
