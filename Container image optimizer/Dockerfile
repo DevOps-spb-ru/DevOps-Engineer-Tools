@@ -8,7 +8,8 @@
 # (--group-add 0 в Docker Desktop, gid группы docker в Linux — см. README).
 #
 # Версия попадает в бинарь и в OCI-метки образа:
-#   docker build --build-arg VERSION=0.1.0 --build-arg REVISION=$(git rev-parse HEAD) -t cio:0.1.0 .
+#   docker build --build-arg VERSION=0.1.0 --build-arg REVISION=$(git rev-parse HEAD) \
+#     --build-arg DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) -t cio:0.1.0 .
 
 # Патч Go фиксируется вместе с go.mod: внутри образа выключен автоподбор тулчейна
 # (GOTOOLCHAIN=local), поэтому образ обязан содержать тулчейн не старше объявленного
@@ -21,13 +22,19 @@ ARG TRIVY_IMAGE=aquasec/trivy:0.74.0
 ARG RUNTIME_IMAGE=alpine:3.21
 
 FROM ${GO_IMAGE} AS builder
+# Те же значения, что подставляют Makefile и релизный workflow: без commit и date
+# `cio --version` внутри образа печатает «commit none, сборка unknown».
 ARG VERSION=dev
+ARG REVISION=none
+ARG DATE=unknown
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/cio ./cmd/cio
+RUN CGO_ENABLED=0 go build -trimpath \
+        -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${REVISION} -X main.date=${DATE}" \
+        -o /out/cio ./cmd/cio
 
 # Trivy из официального образа: сканирование работает и внутри контейнера.
 FROM ${TRIVY_IMAGE} AS trivy
