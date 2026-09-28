@@ -45,7 +45,7 @@ jobs:
           go-version-file: ${{ matrix.dir }}/go.mod
           cache-dependency-path: ${{ matrix.dir }}/go.sum
       - name: Инициализировать CodeQL
-        uses: github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         with:
           languages: go
           # Модуль лежит во вложенном каталоге, поэтому сборку задаём вручную:
@@ -55,7 +55,7 @@ jobs:
         working-directory: ${{ matrix.dir }}
         run: go build -o "${RUNNER_TEMP}/codeql-build/" ./...
       - name: Анализ CodeQL
-        uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         with:
           # Категория уникальна для каждого модуля: с одинаковой категорией отчёты
           # инструментов перекрывали бы друг друга в GitHub Security.
