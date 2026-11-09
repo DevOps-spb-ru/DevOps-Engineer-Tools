@@ -83,7 +83,7 @@ jobs:
           TAG_PREFIX: ${{ inputs.tag_prefix }}
         run: docker buildx imagetools inspect "${IMAGE}:${GITHUB_REF_NAME#"${TAG_PREFIX}"}"
       - name: Установить cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       - name: Подписать образ (keyless)
         env:
           IMAGE: ghcr.io/devops-spb-ru/${{ inputs.tool }}
